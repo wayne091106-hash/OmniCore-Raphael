@@ -1,0 +1,15 @@
+perception/
+  vad.py          → PCM 音訊 + VAD 狀態 → bridge
+  vision.py       → JPEG 幀 + gate 狀態 → bridge
+
+tools/
+  memory/
+    persona.py    → 角色設定、system prompt 模板
+    store.py      → Qdrant 存取
+    manager.py    → 組合 persona + 記憶，提供完整 context
+  function_call/
+    外部模型加程式
+
+bridge.py         → 統一收發，asyncio Queue 路由
+core.py           → GeminiSession + 主動性邏輯，從 bridge 收發
+ui.py             → FastAPI + 前端，顯示 bridge 轉來的感知資料

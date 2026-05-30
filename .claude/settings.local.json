@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python \"C:\\\\Users\\\\wayne\\\\Desktop\\\\OmniCore-Raphael\\\\tools\\\\memory\\\\test_bench.py\" 2>&1)",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.cache\\\\fastembed\" -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"$env:USERPROFILE\\\\fastembed\" -ErrorAction SilentlyContinue | Select-Object Name)",
+      "PowerShell(python -c \"from fastembed.common.model_management import locate_model_file; print\\(locate_model_file.__module__\\)\" 2>&1)",
+      "PowerShell(python -c \"import tempfile,os; print\\(tempfile.gettempdir\\(\\)\\)\" 2>&1)"
+    ]
+  }
+}

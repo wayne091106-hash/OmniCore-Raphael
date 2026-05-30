@@ -1,0 +1,1870 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAPHAEL · Ambient Perception</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Noto+Serif+TC:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════════════════════════════
+   RAPHAEL · Ambient Perception — quiet glass build
+   設計原則：低調 / 優雅 / 流暢
+   效能策略：零 backdrop-filter、零 runtime blur、零 mix-blend-mode
+   ════════════════════════════════════════════════════════════════════ */
+:root{
+  /* base */
+  --bg-0:#070c1a;
+  --bg-1:#0a1124;
+  --bg-2:#0e1730;
+
+  /* poster palette */
+  --gold:#e8c87a;
+  --gold-bright:#f4dca0;
+  --gold-soft:#c9a85f;
+  --gold-deep:#8a6c2c;
+
+  --ice:#7fc7e8;
+  --ice-bright:#a8d8ef;
+  --ice-soft:#5a9fc4;
+  --ice-deep:#2d5c7e;
+
+  --ink:#dfe6f2;
+  --ink-soft:#9aa6bd;
+  --ink-mute:#5e6a82;
+  --ink-faint:#3a4254;
+
+  --line:rgba(127,199,232,.12);
+  --line-2:rgba(127,199,232,.22);
+  --line-gold:rgba(232,200,122,.16);
+
+  --green:#7fdcb3;
+  --amber:#f0b35a;
+  --pink:#e88aac;
+
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --serif:'Noto Serif TC',serif;
+  --display:'Cinzel',serif;
+
+  /* easing — Apple-flavored */
+  --e-out:cubic-bezier(.22,.61,.36,1);     /* standard ease-out */
+  --e-spring:cubic-bezier(.16,1,.3,1);     /* expo-out, used for entries */
+  --e-press:cubic-bezier(.4,0,.2,1);       /* press / state change */
+  --e-soft:cubic-bezier(.32,.72,0,1);      /* iOS-flavored soft glide */
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+*,*::before,*::after{
+  /* default easing for anyone who forgot to specify */
+  transition-timing-function:var(--e-out);
+}
+html,body{
+  height:100%;background:var(--bg-0);color:var(--ink);
+  font-family:var(--mono);font-size:13px;overflow:hidden;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+
+/* ── 背景：固定漸層，零動畫 ─────────────────────────────── */
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(45,72,120,.32), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 50% 110%, rgba(60,50,30,.20), transparent 62%),
+    linear-gradient(160deg,#0c1326 0%,#0a1124 45%,#070c1a 100%);
+}
+
+/* ── 魔法陣：淡 / 慢 / 單一動畫，僅 transform ─────────────── */
+.sigil{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(86vw,86vh);aspect-ratio:1;z-index:0;pointer-events:none;
+  opacity:.07;
+  /* will-change 預留合成層，避免每幀 layout */
+  will-change:transform;
+}
+.sigil svg{width:100%;height:100%;display:block}
+.sigil-outer{animation:spin 240s linear infinite}
+.sigil-mid  {animation:spin 180s linear infinite reverse}
+.sigil-core {animation:spin 120s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 第二個小魔法陣，在右下角，更淡 */
+.sigil-2{
+  position:fixed;right:-15vmin;bottom:-15vmin;
+  width:55vmin;aspect-ratio:1;z-index:0;pointer-events:none;
+  opacity:.045;will-change:transform;
+}
+.sigil-2 svg{width:100%;height:100%;animation:spin 320s linear infinite reverse}
+
+/* 所有面板層級 */
+.topbar,.ctrlbar,.main,.statusbar,.overlay{position:relative;z-index:2}
+.ctrlbar{z-index:30}  /* 高於 main，讓連線下拉浮在最上 */
+
+/* ════════════════════════════════════════════════════════════
+   TOPBAR
+   ════════════════════════════════════════════════════════════ */
+.topbar{
+  height:52px;display:flex;align-items:center;gap:18px;padding:0 24px;
+  background:linear-gradient(180deg,#0f1830,#0b1124);
+  border-bottom:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(255,255,255,.04) inset;
+}
+.topbar > *{flex-shrink:0}
+
+.logo{
+  font-family:var(--display);font-size:17px;font-weight:600;letter-spacing:.32em;
+  color:var(--gold);
+  padding-left:.32em;
+  text-shadow:0 0 16px rgba(232,200,122,.18);
+}
+.logo .v{
+  font-family:var(--mono);font-size:11px;font-weight:400;letter-spacing:.08em;
+  color:var(--ice-soft);margin-left:10px;opacity:.7;
+}
+.tagline{
+  font-family:var(--display);font-size:10px;color:var(--ice-soft);
+  letter-spacing:.42em;text-transform:uppercase;padding-left:.42em;
+  opacity:.7;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.topbar .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+
+/* pill */
+.pill{
+  font-size:10.5px;padding:5px 12px;letter-spacing:.18em;cursor:pointer;user-select:none;
+  border-radius:999px;color:var(--ink-mute);
+  background:transparent;
+  border:1px solid rgba(127,199,232,.14);
+  text-transform:uppercase;font-family:var(--display);font-weight:500;
+  white-space:nowrap;line-height:1.2;
+  transition:
+    color .25s var(--e-out),
+    border-color .25s var(--e-out),
+    background .25s var(--e-out),
+    box-shadow .3s var(--e-out),
+    transform .18s var(--e-out);
+}
+.pill:hover{color:var(--ink-soft);border-color:rgba(127,199,232,.3)}
+.pill:active{transform:scale(.96)}
+.pill.on{
+  color:var(--gold);
+  background:rgba(232,200,122,.06);
+  border-color:rgba(232,200,122,.4);
+}
+.pill .dot{
+  display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:currentColor;margin-right:7px;vertical-align:1.5px;
+  opacity:.4;transition:opacity .3s var(--e-out);
+}
+.pill.on .dot{
+  opacity:1;
+  animation:dot-pulse 2.4s ease-in-out infinite;
+}
+@keyframes dot-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+.tk{
+  font-family:var(--mono);font-size:11px;color:var(--ice-soft);letter-spacing:.06em;
+  padding:4px 10px;border-radius:5px;
+  background:rgba(127,199,232,.04);border:1px solid rgba(127,199,232,.1);
+}
+
+/* ════════════════════════════════════════════════════════════
+   CTRLBAR
+   ════════════════════════════════════════════════════════════ */
+.ctrlbar{
+  height:48px;display:flex;align-items:center;gap:10px;padding:0 24px;
+  background:#0a1124;
+  border-bottom:1px solid var(--line);
+}
+
+/* 統一輸入元件 */
+select,.btn{
+  font-family:var(--mono);font-size:12px;letter-spacing:.04em;
+  background:rgba(127,199,232,.04);
+  color:var(--ink-soft);
+  border:1px solid rgba(127,199,232,.14);
+  border-radius:6px;
+  padding:7px 14px;cursor:pointer;outline:none;
+  white-space:nowrap;line-height:1.2;
+  transition:
+    border-color .22s var(--e-out),
+    color .22s var(--e-out),
+    background .22s var(--e-out),
+    box-shadow .3s var(--e-out),
+    transform .18s var(--e-out);
+}
+select:hover,.btn:hover{
+  border-color:rgba(127,199,232,.32);
+  color:var(--ice-bright);
+  background:rgba(127,199,232,.07);
+  transform:translateY(-1px);
+}
+.btn:active{transform:translateY(0) scale(.97);transition-duration:.08s}
+
+/* 純 CSS 下拉箭頭：用 ::after 畫，由 JS 控制 .open class，避免 :focus-within 卡住 */
+.sel-wrap{position:relative;display:inline-flex}
+.sel-wrap select{appearance:none;-webkit-appearance:none;padding-right:30px}
+.sel-wrap::after{
+  content:'';position:absolute;right:12px;top:50%;
+  width:7px;height:7px;
+  border-right:1.2px solid var(--ice-soft);
+  border-bottom:1.2px solid var(--ice-soft);
+  transform:translateY(-65%) rotate(45deg);
+  pointer-events:none;
+  transition:transform .35s var(--e-spring),border-color .25s var(--e-out);
+}
+.sel-wrap:hover::after{border-color:var(--ice-bright)}
+.sel-wrap.open::after{
+  transform:translateY(-25%) rotate(-135deg);
+  border-color:var(--gold);
+}
+select option{background:#0a1124;color:var(--ink)}
+
+/* 連線後鎖定的展前欄位 */
+select:disabled,textarea:disabled{
+  opacity:.5;cursor:not-allowed;
+}
+.sel-wrap:has(select:disabled)::after{opacity:.3}
+.sel-wrap:has(select:disabled){position:relative}
+.sel-wrap:has(select:disabled)::before{
+  content:'已鎖定';position:absolute;right:30px;top:50%;transform:translateY(-50%);
+  font-size:9px;color:var(--gold-soft);letter-spacing:.1em;pointer-events:none;opacity:.7;
+}
+
+.btn-primary{
+  background:rgba(232,200,122,.1);
+  border-color:rgba(232,200,122,.4);
+  color:var(--gold-bright);font-weight:500;
+}
+.btn-primary:hover{
+  background:rgba(232,200,122,.16);
+  border-color:rgba(232,200,122,.6);
+  box-shadow:0 0 14px rgba(232,200,122,.12);
+}
+.btn-danger{color:var(--pink);border-color:rgba(232,138,172,.3)}
+.btn-danger:hover{
+  background:rgba(232,138,172,.06);
+  border-color:rgba(232,138,172,.5);
+  color:#f4b2cc;
+}
+.btn-warn{color:var(--amber);border-color:rgba(240,179,90,.3)}
+.btn-warn:hover{
+  background:rgba(240,179,90,.06);
+  border-color:rgba(240,179,90,.5);
+}
+
+.ctrlbar .spacer{flex:1}
+
+/* 連線後顯示的唯讀配置摘要膠囊 */
+.cfg-summary{
+  display:none;align-items:center;gap:10px;
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.04em;
+  padding:5px 13px;border-radius:999px;
+  background:rgba(127,199,232,.04);border:1px solid var(--line);
+  animation:fade-down .4s var(--e-out);
+}
+.cfg-summary.show{display:inline-flex}
+.cfg-summary .sep{width:1px;height:11px;background:var(--line-2)}
+.cfg-summary b{color:var(--gold-soft);font-weight:500}
+/* 連線後隱藏「連線」鈕，露出斷線/打斷 */
+.ctrlbar.live #split-connect{display:none}
+.ctrlbar:not(.live) #btn-disconnect,
+.ctrlbar:not(.live) #btn-interrupt{display:none}
+
+/* ── 連線分割按鈕 ─────────────────────────────────────── */
+.split-btn{position:relative;display:inline-flex;align-items:stretch}
+.split-btn .sb-main{border-top-right-radius:0;border-bottom-right-radius:0;border-right:none}
+.split-btn .sb-arrow{
+  border-top-left-radius:0;border-bottom-left-radius:0;
+  padding:7px 9px;display:inline-flex;align-items:center;
+}
+.split-btn .sb-arrow .ic{font-size:14px;transition:transform .3s var(--e-spring)}
+.split-btn.open .sb-arrow .ic{transform:rotate(180deg)}
+/* 快速設定下拉面板（LM Studio 式載入面板）*/
+.quick-cfg{
+  position:absolute;top:calc(100% + 8px);left:0;z-index:200;
+  width:300px;max-height:72vh;overflow-y:auto;padding:0;
+  background:linear-gradient(165deg,#101a35,#0a1020);
+  border:1px solid var(--line-2);border-radius:11px;
+  box-shadow:0 22px 56px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
+  opacity:0;transform:translateY(-6px) scale(.98);pointer-events:none;
+  transition:opacity .25s var(--e-out),transform .3s var(--e-spring);
+}
+.split-btn.open .quick-cfg{opacity:1;transform:none;pointer-events:auto}
+.quick-cfg .qc-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 15px 11px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:linear-gradient(165deg,#101a35,#0d1428);z-index:1;
+}
+.quick-cfg .qc-title{font-family:var(--display);font-size:12px;letter-spacing:.12em;
+  color:var(--gold-bright);text-transform:uppercase}
+.quick-cfg .qc-group{
+  font-family:var(--display);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--ice-soft);padding:12px 15px 5px;opacity:.8;
+}
+.quick-cfg .qc-row{display:flex;align-items:center;gap:10px;padding:4px 15px 7px}
+.quick-cfg .qc-row label{
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-soft);
+  width:46px;flex-shrink:0;
+}
+.quick-cfg .qc-row .sel-wrap{flex:1}
+.quick-cfg .qc-row select{width:100%;font-size:11px;padding:6px 28px 6px 10px}
+/* slider 區塊 */
+.quick-cfg .qc-slider{padding:5px 15px 9px}
+.quick-cfg .qcs-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.quick-cfg .qcs-head span{font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.03em}
+.quick-cfg .qcs-head b{font-family:var(--mono);font-size:11px;color:var(--gold-soft);font-weight:500}
+.quick-cfg .qc-slider input[type=range]{width:100%;accent-color:var(--gold);height:4px}
+.quick-cfg .qcs-hint{display:block;font-size:9.5px;color:var(--ink-mute);margin-top:4px;opacity:.75}
+.quick-cfg .qc-foot{
+  padding:11px 15px 13px;border-top:1px solid var(--line);margin-top:4px;
+  position:sticky;bottom:0;background:linear-gradient(165deg,#0d1428,#0a1020);
+}
+.quick-cfg .qc-check{display:flex;align-items:center;gap:8px;cursor:pointer;
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);user-select:none}
+.quick-cfg .qc-check .cb{
+  width:16px;height:16px;border-radius:4px;border:1px solid var(--line-2);
+  background:rgba(127,199,232,.04);position:relative;transition:.2s;flex-shrink:0;
+}
+.quick-cfg .qc-check.on .cb{background:var(--gold);border-color:var(--gold)}
+.quick-cfg .qc-check.on .cb::after{content:'';position:absolute;left:5px;top:2px;
+  width:4px;height:8px;border:solid #0a1020;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.quick-cfg .qc-link{
+  background:none;border:none;color:var(--gold-soft);cursor:pointer;
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:2px 4px;
+  transition:color .2s var(--e-out);
+}
+.quick-cfg .qc-link:hover{color:var(--gold-bright)}
+
+/* 來源開關下拉（連線後出現）*/
+.src-menu{position:relative;display:none}
+.ctrlbar.live .src-menu{display:inline-flex}
+.src-trigger{display:inline-flex;align-items:center;gap:6px;color:var(--ice-soft)}
+.src-trigger .ic:first-child{font-size:15px}
+.src-dropdown{
+  position:absolute;top:calc(100% + 8px);left:0;z-index:200;min-width:180px;padding:6px;
+  background:linear-gradient(165deg,#101a35,#0a1020);
+  border:1px solid var(--line-2);border-radius:10px;
+  box-shadow:0 18px 44px rgba(0,0,0,.55);
+  opacity:0;transform:translateY(-6px);pointer-events:none;
+  transition:opacity .22s var(--e-out),transform .28s var(--e-spring);
+}
+.src-menu.open .src-dropdown{opacity:1;transform:none;pointer-events:auto}
+.src-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;
+  transition:background .15s var(--e-out)}
+.src-item:hover{background:rgba(127,199,232,.05)}
+.src-item .ic{font-size:15px;color:var(--ice-soft);flex-shrink:0}
+.src-item .si-label{flex:1;font-family:var(--mono);font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
+.src-item .sw{width:32px;height:18px;border-radius:11px;background:rgba(127,199,232,.1);
+  border:1px solid var(--line);position:relative;transition:.2s;flex-shrink:0}
+.src-item .sw::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;
+  background:var(--ink-mute);top:2px;left:2px;transition:.2s}
+.src-item .sw.on{background:rgba(232,200,122,.25);border-color:var(--gold)}
+.src-item .sw.on::after{left:15px;background:var(--gold)}
+
+/* ── 左欄鏡頭下方：左(漂移+數值圖表) | 右(觸發事件) ───── */
+.vision-grid{
+  flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  padding:0 14px 14px;
+}
+.vg-left{display:flex;flex-direction:column;gap:8px;min-height:0}
+.vg-right{display:flex;flex-direction:column;min-height:0;
+  border:1px solid var(--line);border-radius:8px;background:rgba(127,199,232,.02);
+  overflow:hidden;padding:10px 0 0}
+.vg-right .evt-head{padding:0 12px 6px!important}
+.stats-panel .evt-head{padding-top:0!important;padding-left:0!important}
+.tools-sec .evt-head{padding-top:11px!important}
+.vg-right .evt-log{flex:1;overflow-y:auto;padding:0 10px 10px}
+.drift-chip{height:32px;min-height:32px;max-height:32px;padding:5px 10px;box-sizing:border-box}
+.drift-chip .ic{font-size:12px}
+#drift-text{font-size:11px}
+.stats-panel{
+  flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;
+  border:1px solid var(--line);border-radius:8px;background:rgba(127,199,232,.02);
+  padding:12px 13px;overflow-y:auto;
+}
+.stat-bars{display:flex;flex-direction:column;gap:11px;flex:1}
+.sbar{display:grid;grid-template-columns:54px 1fr 34px;align-items:center;gap:8px}
+.sbar .sb-k{font-family:var(--mono);font-size:9.5px;color:var(--ink-mute);letter-spacing:.02em;white-space:nowrap}
+.sbar .sb-track{height:5px;border-radius:3px;background:rgba(127,199,232,.07);overflow:hidden}
+.sbar .sb-fill{height:100%;width:0;border-radius:3px;
+  background:linear-gradient(90deg,rgba(127,199,232,.4),var(--ice));
+  transition:width .35s var(--e-out)}
+.sbar .sb-fill.alt{background:linear-gradient(90deg,rgba(232,200,122,.4),var(--gold))}
+.sbar .sb-fill.alt2{background:linear-gradient(90deg,rgba(127,220,179,.4),var(--green))}
+.sbar .sb-fill.danger{background:linear-gradient(90deg,rgba(255,74,92,.35),#ff4a5c)}
+.sbar .sb-v{font-family:var(--mono);font-size:11px;color:var(--ice-bright);text-align:right;font-weight:500}
+.stat-foot{display:flex;justify-content:space-between;align-items:center;
+  padding-top:8px;border-top:1px dashed var(--line);
+  font-family:var(--mono);font-size:10px;color:var(--ink-mute)}
+.stat-foot b{color:var(--gold-soft);font-weight:500;letter-spacing:.08em}
+
+/* ── 中欄麥克風狀態（整合進 VAD row）──────────────────── */
+.mic-state{
+  display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.04em;
+  padding:3px 10px;border-radius:999px;
+  background:rgba(127,199,232,.04);border:1px solid var(--line);
+  transition:color .3s var(--e-out),border-color .3s var(--e-out),background .3s var(--e-out);
+}
+.mic-state .ic{font-size:13px;color:var(--ice-soft);transition:color .3s var(--e-out)}
+.mic-state.speaking{
+  color:var(--gold);border-color:rgba(232,200,122,.4);background:rgba(232,200,122,.06);
+}
+.mic-state.speaking .ic{color:var(--gold)}
+
+/* ── 右欄左邊界拖曳 ───────────────────────────────────── */
+#col-right{position:relative;min-width:0}
+#col-right .col-head{justify-content:space-between}
+#col-drag-r{
+  position:absolute;top:0;left:-3px;width:10px;height:100%;cursor:col-resize;z-index:25;
+}
+#col-drag-r::after{
+  content:'';position:absolute;left:3px;top:50%;transform:translateY(-50%);
+  width:3px;height:48px;border-radius:3px;background:var(--gold-soft);
+  opacity:0;transition:opacity .25s var(--e-out);
+}
+#col-drag-r:hover::after,#col-drag-r.dragging::after{opacity:.9}
+
+/* ── 中間拖動線（置於中欄右邊界）────────────────────── */
+/* （已移除：改由右欄左邊界統一控制右欄寬度）*/
+
+/* 頂列 pill 未連線時隱藏（連線後才是來源開關）*/
+.pill.src-toggle{display:none}
+.connected .pill.src-toggle{display:inline-flex}
+.icon-btn{
+  width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(127,199,232,.04);
+  border:1px solid rgba(127,199,232,.14);border-radius:6px;
+  cursor:pointer;color:var(--ice-soft);
+  transition:
+    color .22s var(--e-out),
+    border-color .22s var(--e-out),
+    background .22s var(--e-out),
+    transform .18s var(--e-out),
+    box-shadow .3s var(--e-out);
+}
+.icon-btn:hover{
+  border-color:rgba(232,200,122,.45);color:var(--gold);
+  background:rgba(232,200,122,.05);
+  transform:translateY(-1px);
+}
+.icon-btn:active{transform:translateY(0) scale(.93);transition-duration:.08s}
+
+/* ════════════════════════════════════════════════════════════
+   MAIN GRID
+   ════════════════════════════════════════════════════════════ */
+.main{
+  display:grid;grid-template-columns:360px 1fr 320px;
+  height:calc(100vh - 100px);gap:14px;padding:14px 18px;
+  transition:grid-template-columns 0.45s var(--e-soft);
+}
+.main.dragging{
+  transition:none !important;
+}
+/* 收合寬度由 JS applyGrid() 用 inline style 控制，避免與拖曳衝突 */
+
+.col{
+  display:flex;flex-direction:column;min-height:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.012),transparent 40%),
+             linear-gradient(165deg,#101a35 0%,#0b1226 60%,#0a1022 100%);
+  border:1px solid var(--line);
+  border-radius:10px;
+  box-shadow:0 14px 36px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05);
+  overflow:hidden;
+  position:relative;
+}
+.col > *{position:relative}
+
+/* 面板頂緣的一道金/冰漸層細光 — poster 的標題線 */
+.col::before{
+  content:'';position:absolute;top:0;left:14%;right:14%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(127,199,232,.5),rgba(232,200,122,.4),rgba(127,199,232,.5),transparent);
+  pointer-events:none;
+}
+
+.col-head{
+  height:40px;display:flex;align-items:center;gap:10px;padding:0 18px;
+  font-family:var(--display);font-size:10.5px;color:var(--ice-soft);
+  letter-spacing:.32em;text-transform:uppercase;font-weight:500;
+  border-bottom:1px solid var(--line);flex-shrink:0;
+  white-space:nowrap;overflow:hidden;
+}
+.col-head .num,.col-head .hdot{flex-shrink:0}
+.col-head .num{
+  font-family:var(--display);font-size:10px;font-weight:600;color:var(--gold);
+  padding:2px 7px;border:1px solid rgba(232,200,122,.28);border-radius:3px;
+  letter-spacing:.14em;
+}
+.col-head .hdot{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--gold);box-shadow:0 0 6px rgba(232,200,122,.5);
+  animation:dot-pulse 3s ease-in-out infinite;
+}
+
+/* ── 左欄：視覺感知 ─────────────────────────────────────── */
+.cam-wrap{padding:14px;flex-shrink:0}
+.cam{
+  position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;
+  border-radius:7px;
+  background:radial-gradient(ellipse at center,#0e1830 0%,#070c1a 100%);
+  border:1px solid var(--line-2);
+  transition:border-color .35s var(--e-out),box-shadow .45s var(--e-out);
+}
+.cam.active{
+  border-color:rgba(232,200,122,.38);
+  box-shadow:0 0 18px rgba(232,200,122,.1);
+  animation:cam-breathe 5.5s ease-in-out infinite;
+}
+@keyframes cam-breathe{
+  0%,100%{box-shadow:0 0 14px rgba(232,200,122,.08),inset 0 0 0 1px rgba(232,200,122,.02)}
+  50%{box-shadow:0 0 22px rgba(232,200,122,.18),inset 0 0 0 1px rgba(232,200,122,.05)}
+}
+.cam img{width:100%;height:100%;object-fit:contain;display:block;background:#070c1a}
+.cam .vision-layer{
+  position:absolute;inset:0;width:100%;height:100%;
+  pointer-events:none;z-index:6;
+}
+.cam .vision-box{
+  position:absolute;
+  border:2px solid rgba(113,203,255,.98);
+  box-shadow:0 0 0 1px rgba(0,0,0,.55),0 0 10px rgba(0,0,0,.45);
+  border-radius:2px;
+}
+.cam .vision-box.fast{border-color:rgba(255,74,92,.98)}
+.cam .vision-box.fast-rejected{border-color:rgba(160,160,160,.85)}
+.cam .vision-box.identity{
+  border-color:rgba(111,255,190,.98);
+  box-shadow:0 0 0 1px rgba(0,0,0,.55),0 0 12px rgba(111,255,190,.22);
+}
+.cam .vision-tag{
+  position:absolute;left:-1px;top:-22px;max-width:140px;
+  padding:2px 6px;border-radius:2px;
+  background:rgba(0,0,0,.78);color:#9fd8ff;
+  font-family:var(--mono);font-size:10px;line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cam .vision-box.fast .vision-tag{color:#ff8b96}
+.cam .vision-box.fast-rejected .vision-tag{color:#bbb}
+.cam .vision-box.identity .vision-tag{color:#8fffd0}
+.cam.triggered::before{
+  content:'';position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:rgba(90,230,120,.28);
+  box-shadow:inset 0 0 0 5px rgba(90,230,120,.85);
+}
+.cam .ph{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:rgba(127,199,232,.15);font-size:46px;
+}
+/* 內描邊高光、極弱掃描線 */
+.cam::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:4;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(127,199,232,.018) 3px,rgba(127,199,232,.018) 4px);
+}
+.cam .ov{
+  position:absolute;z-index:5;font-size:10px;padding:2px 7px;border-radius:3px;letter-spacing:.12em;
+  background:rgba(7,12,26,.78);color:var(--gold);
+  border:1px solid rgba(232,200,122,.2);
+  font-family:var(--mono);text-transform:uppercase;
+}
+.cam .fps{left:10px;bottom:10px;display:flex;gap:6px}
+.cam .gate{right:10px;top:10px;color:var(--ice-bright);border-color:rgba(127,199,232,.22)}
+
+.sense-meta{display:flex;gap:10px;margin-top:10px}
+.meta-chip{
+  flex:1;padding:7px 11px;display:flex;align-items:center;gap:8px;
+  font-size:11px;color:var(--ink-soft);
+  background:rgba(127,199,232,.03);
+  border:1px solid var(--line);border-radius:6px;
+  transition:border-color .25s var(--e-out),background .25s var(--e-out),transform .25s var(--e-out);
+}
+.meta-chip:hover{border-color:var(--line-2);background:rgba(127,199,232,.05);transform:translateY(-1px)}
+
+.evt-head{
+  padding:11px 18px 6px;
+  font-family:var(--display);font-size:9.5px;color:var(--ice-soft);
+  letter-spacing:.32em;font-weight:500;text-transform:uppercase;
+  border-top:1px solid var(--line);flex-shrink:0;opacity:.85;
+}
+.evt-log{flex:1;overflow-y:auto;padding:4px 12px 12px;scroll-behavior:smooth}
+.evt{
+  display:flex;gap:9px;align-items:baseline;padding:5px 10px;
+  border-left:2px solid var(--line-2);margin-top:3px;font-size:11px;
+  border-radius:0 4px 4px 0;
+  background:transparent;
+  transition:background .3s var(--e-out);
+  animation:slide-in .45s var(--e-spring);
+}
+.evt:hover{background:rgba(127,199,232,.04)}
+@keyframes slide-in{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+.evt .k{color:var(--ink-soft);font-weight:500;flex-shrink:0;font-family:var(--mono);font-size:10.5px}
+.evt .d{color:var(--ink-mute);font-size:10px}
+.evt.appeared .k{color:var(--green)}.evt.appeared{border-left-color:rgba(127,220,179,.45)}
+.evt.leave    .k{color:var(--ink-soft)}.evt.leave   {border-left-color:rgba(166,176,194,.3)}
+.evt.enter    .k{color:var(--gold)}    .evt.enter   {border-left-color:rgba(232,200,122,.45)}
+.evt.moved    .k{color:var(--ice-bright)}.evt.moved {border-left-color:rgba(127,199,232,.5)}
+
+/* ── 中欄 ─────────────────────────────────────────────── */
+.center{}
+.proactive-banner{
+  margin:12px 18px 0;padding:9px 13px;
+  background:rgba(232,200,122,.06);
+  border:1px solid rgba(232,200,122,.28);
+  border-radius:6px;display:flex;align-items:center;gap:10px;
+  font-size:12px;color:var(--gold);flex-shrink:0;
+  animation:fade-down .35s var(--e-out);
+  letter-spacing:.04em;
+}
+@keyframes fade-down{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+.conv{flex:1;overflow-y:auto;padding:18px 24px;display:flex;flex-direction:column;gap:6px;scroll-behavior:smooth}
+.msg-label{
+  font-family:var(--display);font-size:9px;letter-spacing:.32em;
+  margin:12px 0 4px;color:var(--ink-mute);text-transform:uppercase;font-weight:500;
+}
+.msg-label.user{text-align:right;color:rgba(232,200,122,.55)}
+.msg-label.rae{color:var(--ice-bright);opacity:.85}
+
+.bubble{
+  max-width:78%;padding:11px 16px;border-radius:10px;font-size:14px;
+  line-height:1.65;color:var(--ink);font-family:var(--serif);font-weight:400;letter-spacing:.01em;
+  animation:bubble-in .4s var(--e-out);
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.02);
+}
+@keyframes bubble-in{
+  from{opacity:0;transform:translateY(6px) scale(.98)}
+  to  {opacity:1;transform:none}
+}
+.bubble.rae{
+  background:linear-gradient(150deg,rgba(127,199,232,.08),rgba(127,199,232,.02));
+  border-color:rgba(127,199,232,.22);
+  align-self:flex-start;border-top-left-radius:3px;
+}
+.bubble.user{
+  background:linear-gradient(150deg,rgba(232,200,122,.09),rgba(232,200,122,.02));
+  border-color:rgba(232,200,122,.24);
+  color:#f0e6c8;
+  align-self:flex-end;border-top-right-radius:3px;
+}
+.bubble.sys{
+  background:rgba(127,199,232,.04);border-color:rgba(127,199,232,.12);
+  color:var(--ink-soft);font-size:12px;align-self:stretch;max-width:100%;font-family:var(--mono);
+}
+.bubble.tool{
+  background:rgba(232,138,172,.04);
+  border-color:rgba(232,138,172,.2);
+  align-self:stretch;max-width:100%;font-size:12px;color:var(--pink);
+  display:flex;align-items:center;gap:10px;font-family:var(--mono);
+}
+.bubble.tool.result{color:#a8debe;
+  background:rgba(127,220,179,.04);
+  border-color:rgba(127,220,179,.2);
+}
+.bubble.tool code{
+  color:var(--gold-bright);word-break:break-all;
+  background:rgba(0,0,0,.25);padding:1px 6px;border-radius:3px;font-size:11px;
+}
+
+/* VAD */
+.vad-row{
+  display:flex;align-items:center;gap:12px;padding:8px 24px;
+  border-top:1px solid var(--line);flex-shrink:0;
+}
+.vad-row .lbl{
+  font-family:var(--display);font-size:9px;color:var(--ice-soft);
+  letter-spacing:.32em;font-weight:500;opacity:.7;
+}
+.vad-meter{
+  flex:1;height:5px;border-radius:3px;overflow:hidden;
+  background:rgba(127,199,232,.06);
+  border:1px solid rgba(127,199,232,.08);
+}
+.vad-fill{
+  height:100%;width:4%;border-radius:2px;
+  background:linear-gradient(90deg,rgba(127,199,232,.4),var(--ice));
+  transition:width .08s linear,background .4s var(--e-out),box-shadow .4s var(--e-out);
+}
+.vad-fill.speaking{
+  background:linear-gradient(90deg,var(--gold),var(--gold-bright));
+  box-shadow:0 0 8px rgba(232,200,122,.35);
+}
+
+.input-row{display:flex;gap:10px;padding:12px 24px 16px;flex-shrink:0}
+.input-file-btn{
+  width:42px;min-width:42px;padding:0;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--line);border-radius:7px;background:rgba(127,199,232,.03);
+  color:var(--ice-soft);cursor:pointer;transition:border-color .25s var(--e-out),background .25s var(--e-out),color .25s var(--e-out);
+}
+.input-file-btn:hover{border-color:rgba(232,200,122,.35);background:rgba(232,200,122,.06);color:var(--gold)}
+.input-file-btn .ic{font-size:16px}
+.input-row input{
+  flex:1;font-family:var(--serif);font-size:14px;
+  background:rgba(127,199,232,.03);
+  color:var(--ink);
+  border:1px solid var(--line);border-radius:7px;padding:10px 14px;outline:none;
+  transition:border-color .25s var(--e-out),box-shadow .3s var(--e-out),background .25s var(--e-out);
+}
+.input-row input:hover{border-color:rgba(127,199,232,.22)}
+.input-row input:focus{
+  border-color:rgba(232,200,122,.4);
+  box-shadow:0 0 0 3px rgba(232,200,122,.08);
+  background:rgba(127,199,232,.05);
+}
+.input-row input::placeholder{color:var(--ink-mute);font-family:var(--serif)}
+
+/* ── 右欄 ─────────────────────────────────────────────── */
+.right-split{display:flex;flex-direction:column;min-height:0;height:100%}
+.tools-sec{display:flex;flex-direction:column;min-height:60px;flex:1 1 50%;overflow:hidden;border-bottom:1px solid var(--line)}
+.mem-sec{display:flex;flex-direction:column;min-height:60px;flex:1 1 50%;overflow:hidden}
+/* 上下分界拖曳把手 */
+#row-drag-r{height:7px;cursor:row-resize;position:relative;flex-shrink:0;background:transparent}
+#row-drag-r::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:48px;height:3px;border-radius:3px;background:var(--gold-soft);opacity:.25;
+  transition:opacity .25s var(--e-out),width .25s var(--e-out)}
+#row-drag-r:hover::after,#row-drag-r.dragging::after{opacity:.9;width:72px}
+.tools-sec{flex:1;display:flex;flex-direction:column;min-height:0;border-bottom:1px solid var(--line)}
+.mem-sec{flex:1;display:flex;flex-direction:column;min-height:0}
+.sec-body{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+
+.tool-card{
+  background:rgba(232,138,172,.04);
+  border:1px solid rgba(232,138,172,.18);
+  border-radius:6px;padding:9px 11px;
+  animation:bubble-in .4s var(--e-out);
+  transition:border-color .25s var(--e-out),background .25s var(--e-out),transform .3s var(--e-out);
+}
+.tool-card:hover{border-color:rgba(232,138,172,.32);background:rgba(232,138,172,.06);transform:translateY(-1px)}
+.tool-card .tn{color:var(--pink);font-size:12px;font-weight:500;display:flex;align-items:center;gap:7px;font-family:var(--mono)}
+.tool-card .ta{color:var(--ink-mute);font-size:10px;margin-top:4px;word-break:break-all;font-family:var(--mono)}
+.tool-card .tr{
+  color:#a8debe;font-size:10px;margin-top:5px;padding-top:5px;
+  border-top:1px dashed var(--line);word-break:break-all;font-family:var(--mono);
+}
+.file-chip{
+  display:inline-flex;align-items:center;gap:7px;max-width:100%;margin-top:7px;padding:6px 8px;
+  border:1px solid rgba(127,199,232,.18);border-radius:6px;background:rgba(127,199,232,.04);
+  color:var(--ice-bright);font-size:11px;text-decoration:none;font-family:var(--mono);
+}
+.file-chip:hover{border-color:rgba(232,200,122,.35);color:var(--gold)}
+.file-preview-img{display:block;max-width:100%;max-height:180px;margin-top:8px;border-radius:6px;border:1px solid var(--line);object-fit:contain;background:#070c1a}
+.tool-card.pending{border-color:rgba(240,179,90,.3)}
+.tool-card.pending .tn{color:var(--amber)}
+
+.mem-card{
+  padding:8px 12px;border-radius:6px;
+  border:1px solid var(--line-gold);
+  border-left:2px solid rgba(232,200,122,.5);
+  background:rgba(232,200,122,.04);
+  animation:bubble-in .4s var(--e-out);
+  transition:border-color .25s var(--e-out),background .25s var(--e-out),transform .3s var(--e-out);
+}
+.mem-card:hover{background:rgba(232,200,122,.07);transform:translateY(-1px)}
+.mem-card .mt{
+  color:var(--gold);font-family:var(--display);font-size:9px;letter-spacing:.3em;
+  margin-bottom:3px;text-transform:uppercase;font-weight:500;
+}
+.mem-card.user{border-left-color:rgba(127,220,179,.5);
+  background:rgba(127,220,179,.03);border-color:rgba(127,220,179,.15)}
+.mem-card.user .mt{color:var(--green)}
+.mem-card .mc{font-size:13px;color:var(--ink);line-height:1.5;font-family:var(--serif)}
+.mem-card .imp{font-family:var(--mono);font-size:9px;color:var(--ink-mute);float:right;letter-spacing:.06em}
+
+/* ── 收合 ─────────────────────────────────────────────── */
+.collapse-btn{
+  width:auto;background:none;border:none;color:var(--ice-soft);cursor:pointer;
+  padding:6px;display:flex;align-items:center;justify-content:center;
+  transition:color .22s var(--e-out),transform .22s var(--e-out);
+}
+.collapse-btn:hover{color:var(--gold)}
+.collapse-btn:active{transform:scale(.92)}
+.mem-collapsed .right-split .col-head>span:first-child{display:none !important}
+.mem-collapsed .right-split .sec-body,
+.mem-collapsed .right-split .tools-sec,
+.mem-collapsed .right-split .mem-sec,
+.mem-collapsed .right-split .mem-sec .evt-head,
+.mem-collapsed #row-drag-r{display:none}
+.mem-collapsed .right-split .col-head{justify-content:center !important;padding:0 !important;border-bottom-color:transparent}
+/* 收合前不占版面，避免「工具調用」標題下方出現整塊隱形空白 */
+.vert-label{
+  display:none;writing-mode:vertical-rl;font-family:var(--display);
+  font-size:10px;letter-spacing:.32em;color:var(--ice-soft);
+  padding:14px 0;text-align:center;margin:0 auto;text-transform:uppercase;
+  opacity:0;transform:translateY(10px);
+  transition:opacity 0.35s var(--e-out), transform 0.35s var(--e-out);
+  pointer-events:none;
+}
+.mem-collapsed .vert-label{
+  display:block;opacity:0.7;transform:translateY(0);pointer-events:auto;
+}
+.mem-collapsed #col-drag-r{display:none}
+
+/* ── 收合後面板外觀優化 ── */
+.mem-collapsed#col-right {
+  background: linear-gradient(180deg, rgba(16, 26, 53, 0.3) 0%, rgba(10, 16, 34, 0.45) 100%);
+  border-color: rgba(127, 199, 232, 0.08);
+  box-shadow: none;
+  transition: background 0.3s var(--e-out), border-color 0.3s var(--e-out), box-shadow 0.3s var(--e-out);
+}
+.mem-collapsed#col-right:hover {
+  background: linear-gradient(180deg, rgba(16, 26, 53, 0.45) 0%, rgba(10, 16, 34, 0.6) 100%);
+  border-color: rgba(127, 199, 232, 0.2);
+  box-shadow: 0 0 15px rgba(127, 199, 232, 0.05);
+}
+.mem-collapsed#col-right::before {
+  display:none;
+}
+
+/* ── 狀態列 ────────────────────────────────────────────── */
+.statusbar{
+  height:30px;display:flex;align-items:center;gap:22px;padding:0 24px;
+  background:#0a1124;
+  border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:11px;color:var(--ink-mute);
+}
+.statusbar .s{display:flex;gap:7px;align-items:center;letter-spacing:.04em}
+.statusbar .s b{color:var(--ice-bright);font-weight:500;transition:color .35s var(--e-out)}
+.statusbar .spacer{flex:1}
+
+/* ════════════════════════════════════════════════════════════
+   SETTINGS · 全新雙欄式設定面板
+   左：分頁導覽（含小符紋裝飾）
+   右：滾動內容區
+   ════════════════════════════════════════════════════════════ */
+.overlay{
+  position:fixed;inset:0;
+  background:radial-gradient(ellipse at center,rgba(10,15,30,.65) 0%,rgba(5,8,18,.88) 70%);
+  display:flex;align-items:center;justify-content:center;z-index:50;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .32s var(--e-out),visibility 0s linear .32s;
+}
+.overlay.show{
+  opacity:1;visibility:visible;pointer-events:auto;
+  transition:opacity .32s var(--e-out),visibility 0s linear 0s;
+}
+
+.settings{
+  width:min(880px,94vw);height:min(620px,86vh);
+  display:grid;grid-template-columns:220px 1fr;
+  background:linear-gradient(165deg,#131c36 0%,#0b1226 60%,#0a1022 100%);
+  border:1px solid rgba(127,199,232,.22);
+  border-radius:14px;
+  box-shadow:
+    0 32px 80px rgba(0,0,0,.7),
+    0 0 0 1px rgba(255,255,255,.025) inset,
+    0 0 60px rgba(232,200,122,.04) inset;
+  position:relative;overflow:hidden;
+  transform:translateY(14px) scale(.965);
+  opacity:.6;
+  transition:transform .48s var(--e-spring),opacity .32s var(--e-out);
+}
+.overlay.show .settings{transform:none;opacity:1}
+
+/* 面板上的金光標題線 */
+.settings::before{
+  content:'';position:absolute;top:0;left:20%;right:20%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(232,200,122,.55),rgba(127,199,232,.45),transparent);
+  pointer-events:none;
+}
+/* 角落淡淡符紋 */
+.settings::after{
+  content:'';position:absolute;right:-60px;bottom:-60px;
+  width:240px;height:240px;border-radius:50%;
+  border:1px dashed rgba(127,199,232,.08);
+  pointer-events:none;
+  animation:spin 200s linear infinite;
+}
+
+/* ── 左側分頁 ───────────────────────────────────────── */
+.settings-nav{
+  display:flex;flex-direction:column;
+  border-right:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(127,199,232,.025),transparent);
+  padding:20px 0;
+  position:relative;
+}
+.settings-brand{
+  padding:0 22px 18px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:14px;
+}
+.settings-brand .nm{
+  font-family:var(--display);font-size:13px;font-weight:600;
+  letter-spacing:.32em;color:var(--gold);
+  text-shadow:0 0 14px rgba(232,200,122,.18);
+}
+.settings-brand .sub{
+  font-family:var(--display);font-size:9px;
+  letter-spacing:.36em;color:var(--ice-soft);
+  margin-top:6px;opacity:.7;text-transform:uppercase;
+}
+
+.nav-list{display:flex;flex-direction:column;gap:2px;padding:0 12px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;
+  padding:10px 12px;border-radius:6px;
+  font-family:var(--display);font-size:10.5px;
+  letter-spacing:.24em;text-transform:uppercase;font-weight:500;
+  color:var(--ink-mute);cursor:pointer;
+  border:1px solid transparent;
+  position:relative;
+  transition:
+    color .25s var(--e-out),
+    background .25s var(--e-out),
+    border-color .25s var(--e-out),
+    padding-left .3s var(--e-spring);
+}
+.nav-item .ic{font-size:14px;opacity:.6;transition:opacity .25s var(--e-out),color .25s var(--e-out)}
+.nav-item .nm{flex:1}
+.nav-item .num{
+  font-family:var(--mono);font-size:9px;color:var(--ink-faint);
+  letter-spacing:.1em;
+}
+.nav-item:hover{
+  color:var(--ice-bright);
+  background:rgba(127,199,232,.03);
+}
+.nav-item:hover .ic{opacity:1;color:var(--ice-bright)}
+.nav-item.active{
+  color:var(--gold);
+  background:rgba(232,200,122,.06);
+  border-color:rgba(232,200,122,.22);
+  padding-left:16px;
+}
+.nav-item.active .ic{opacity:1;color:var(--gold)}
+.nav-item.active .num{color:var(--gold-soft)}
+.nav-item.active::before{
+  content:'';position:absolute;left:-12px;top:50%;transform:translateY(-50%);
+  width:3px;height:18px;border-radius:2px;
+  background:var(--gold);
+  box-shadow:0 0 8px rgba(232,200,122,.55);
+}
+
+.settings-nav .foot{
+  margin-top:auto;padding:14px 22px 4px;
+  border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:10px;color:var(--ink-faint);
+  letter-spacing:.06em;
+}
+.settings-nav .foot .k{color:var(--ice-soft);opacity:.7}
+
+/* ── 右側內容 ───────────────────────────────────────── */
+.settings-main{
+  display:flex;flex-direction:column;min-height:0;
+  position:relative;
+}
+.settings-head{
+  display:flex;align-items:center;gap:14px;
+  padding:18px 26px;
+  border-bottom:1px solid var(--line);
+  flex-shrink:0;
+}
+.settings-head h2{
+  font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:.28em;
+  color:var(--gold-bright);text-transform:uppercase;
+}
+.settings-head .sub{
+  font-family:var(--serif);font-size:11.5px;color:var(--ink-mute);
+  letter-spacing:.06em;
+}
+.settings-head .x{margin-left:auto}
+
+.settings-body{
+  flex:1;min-height:0;overflow-y:auto;
+  padding:24px 28px 28px;
+  position:relative;
+}
+
+/* 分頁面板，淡入淡出 */
+.pane{display:none;flex-direction:column;gap:22px}
+.pane.active{display:flex;animation:pane-in .42s var(--e-spring)}
+@keyframes pane-in{
+  from{opacity:0;transform:translateY(6px)}
+  to  {opacity:1;transform:none}
+}
+
+/* field：可獨立成卡，也可純樸 */
+.field{display:flex;flex-direction:column;gap:8px}
+.field label{
+  font-family:var(--display);font-size:10.5px;color:var(--ice-bright);
+  letter-spacing:.24em;text-transform:uppercase;font-weight:500;
+  display:flex;align-items:baseline;gap:10px;
+}
+.field label .badge{
+  font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  color:var(--gold-soft);
+  padding:2px 6px;border:1px solid rgba(232,200,122,.22);border-radius:3px;
+  background:rgba(232,200,122,.04);
+  text-transform:none;font-weight:400;
+}
+.field .hint{
+  font-family:var(--serif);font-size:11.5px;color:var(--ink-mute);
+  letter-spacing:.02em;line-height:1.5;
+}
+.field textarea{
+  font-family:var(--serif);font-size:13.5px;line-height:1.7;
+  background:rgba(127,199,232,.03);color:var(--ink);
+  border:1px solid var(--line);border-radius:8px;
+  padding:13px 16px;outline:none;resize:vertical;min-height:100px;
+  transition:border-color .25s var(--e-out),box-shadow .35s var(--e-out),background .25s var(--e-out);
+}
+.field textarea:hover{border-color:rgba(127,199,232,.22)}
+.field textarea:focus{
+  border-color:rgba(232,200,122,.4);
+  box-shadow:0 0 0 3px rgba(232,200,122,.08);
+  background:rgba(127,199,232,.045);
+}
+.field input[type=text],
+.field input[type=url],
+.field input[type=number]{
+  font-family:var(--mono);font-size:12px;letter-spacing:.04em;
+  background:rgba(127,199,232,.03);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;
+  padding:8px 10px;outline:none;
+}
+.field input[type=text]:focus,
+.field input[type=url]:focus,
+.field input[type=number]:focus{border-color:rgba(232,200,122,.4)}
+.inline-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.inline-actions .sel-wrap{min-width:180px}
+.inline-actions input{min-width:180px;flex:1}
+
+/* 兩欄 grid */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px 24px}
+
+/* ── Slider：可視化軌道填充 ─────────────────────────── */
+.slider-field{
+  padding:13px 14px;
+  background:rgba(127,199,232,.025);
+  border:1px solid var(--line);
+  border-radius:8px;
+  transition:border-color .25s var(--e-out),background .25s var(--e-out);
+}
+.slider-field:hover{border-color:rgba(127,199,232,.22);background:rgba(127,199,232,.04)}
+.slider-field .top{
+  display:flex;align-items:baseline;gap:10px;margin-bottom:4px;
+}
+.slider-field .top label{flex:1;margin:0}
+.slider-field .top .val{
+  font-family:var(--mono);font-size:13px;color:var(--gold);
+  letter-spacing:.04em;font-weight:500;
+  transition:color .25s var(--e-out);
+}
+.slider-field .hint{margin:2px 0 10px}
+.slider-field .track{
+  position:relative;height:18px;display:flex;align-items:center;
+}
+.field input[type=range]{
+  width:100%;-webkit-appearance:none;appearance:none;
+  height:4px;border-radius:2px;
+  background:rgba(127,199,232,.08);
+  outline:none;cursor:pointer;
+  background-image:linear-gradient(90deg,var(--ice-soft),var(--gold));
+  background-repeat:no-repeat;
+  background-size:var(--p,50%) 100%;
+  transition:background-size .15s linear;
+}
+.field input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%,var(--gold-bright),var(--gold-soft));
+  cursor:pointer;border:1px solid rgba(232,200,122,.7);
+  box-shadow:0 0 0 4px rgba(232,200,122,.08),0 0 10px rgba(232,200,122,.35);
+  transition:transform .22s var(--e-spring),box-shadow .3s var(--e-out);
+}
+.field input[type=range]::-webkit-slider-thumb:hover{
+  transform:scale(1.18);
+  box-shadow:0 0 0 6px rgba(232,200,122,.12),0 0 16px rgba(232,200,122,.55);
+}
+.field input[type=range]::-webkit-slider-thumb:active{transform:scale(1.04);transition-duration:.08s}
+.field input[type=range]::-moz-range-thumb{
+  width:16px;height:16px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%,var(--gold-bright),var(--gold-soft));
+  cursor:pointer;border:1px solid rgba(232,200,122,.7);
+  box-shadow:0 0 0 4px rgba(232,200,122,.08),0 0 10px rgba(232,200,122,.35);
+}
+.slider-field .scale{
+  display:flex;justify-content:space-between;
+  font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);
+  letter-spacing:.06em;margin-top:6px;
+}
+
+/* ── Toggle 卡片 ─────────────────────────────────────── */
+.toggle-card{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 16px;
+  background:rgba(127,199,232,.025);
+  border:1px solid var(--line);
+  border-radius:8px;cursor:pointer;user-select:none;
+  transition:border-color .25s var(--e-out),background .25s var(--e-out);
+}
+.toggle-card:hover{border-color:rgba(127,199,232,.22);background:rgba(127,199,232,.045)}
+.toggle-card.on{
+  border-color:rgba(232,200,122,.28);
+  background:rgba(232,200,122,.04);
+}
+.toggle-card .tc-body{flex:1;min-width:0}
+.toggle-card .tc-title{
+  font-family:var(--display);font-size:11px;color:var(--ice-bright);
+  letter-spacing:.22em;text-transform:uppercase;font-weight:500;
+  transition:color .25s var(--e-out);
+}
+.toggle-card.on .tc-title{color:var(--gold-bright)}
+.toggle-card .tc-hint{
+  font-family:var(--serif);font-size:11.5px;color:var(--ink-mute);
+  margin-top:4px;letter-spacing:.02em;line-height:1.5;
+}
+.toggle-card .sw{
+  width:40px;height:22px;border-radius:14px;position:relative;flex-shrink:0;
+  background:rgba(127,199,232,.07);border:1px solid var(--line);
+  transition:background .28s var(--e-out),border-color .28s var(--e-out);
+}
+.toggle-card .sw::after{
+  content:'';position:absolute;width:14px;height:14px;border-radius:50%;
+  background:var(--ink-mute);top:3px;left:3px;
+  transition:left .36s var(--e-spring),background .28s var(--e-out),box-shadow .3s var(--e-out);
+}
+.toggle-card.on .sw{
+  background:rgba(232,200,122,.18);
+  border-color:rgba(232,200,122,.5);
+}
+.toggle-card.on .sw::after{
+  left:21px;
+  background:var(--gold-bright);
+  box-shadow:0 0 8px rgba(232,200,122,.55);
+}
+
+/* ── 段落小標 ───────────────────────────────────────── */
+.pane-section-label{
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--display);font-size:9.5px;color:var(--ice-soft);
+  letter-spacing:.36em;text-transform:uppercase;font-weight:500;
+  opacity:.65;margin-top:4px;
+}
+.pane-section-label::after{
+  content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent);
+}
+
+/* ── 底部 ──────────────────────────────────────────── */
+.settings-foot{
+  display:flex;gap:12px;justify-content:space-between;align-items:center;
+  padding:14px 26px;
+  border-top:1px solid var(--line);
+  flex-shrink:0;
+  background:linear-gradient(0deg,rgba(11,18,38,.6),transparent);
+}
+.settings-foot .hint{
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-mute);
+  letter-spacing:.06em;display:flex;align-items:center;gap:8px;
+}
+.settings-foot .hint kbd{
+  font-family:var(--mono);font-size:9.5px;
+  padding:2px 6px;border:1px solid var(--line);border-radius:3px;
+  background:rgba(127,199,232,.04);color:var(--ice-soft);
+}
+.settings-foot .actions{display:flex;gap:10px}
+
+@media (max-width:780px){
+  .settings{grid-template-columns:160px 1fr;height:auto;max-height:90vh}
+  .settings-brand{padding:0 14px 14px}
+  .nav-list{padding:0 8px}
+  .nav-item{padding:9px 10px;font-size:10px;letter-spacing:.18em}
+}
+
+/* ── 左欄拖曳 ───────────────────────────────────────── */
+#col-left{position:relative}
+#col-drag{
+  position:absolute;top:0;right:-3px;width:10px;height:100%;cursor:col-resize;z-index:20;
+}
+#col-drag::after{
+  content:'';position:absolute;left:3px;top:50%;transform:translateY(-50%);
+  width:3px;height:48px;border-radius:3px;background:var(--gold-soft);
+  opacity:0;transition:opacity .25s var(--e-out);
+}
+#col-drag:hover::after,#col-drag.dragging::after{opacity:.9}
+
+/* ── 捲軸 ────────────────────────────────────────── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:rgba(127,199,232,.14);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(232,200,122,.25)}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ── 圖示 ─────────────────────────────────────────── */
+.ic{display:inline-flex;align-items:center;justify-content:center;width:1em;height:1em;vertical-align:-0.15em}
+.ic svg{width:1em;height:1em;display:block}
+.icon-btn .ic{font-size:16px}
+.meta-chip .ic{font-size:14px}
+.cam .ph .ic{font-size:46px}
+.proactive-banner .ic{font-size:15px;color:var(--gold-bright)}
+.bubble.tool .ic{font-size:14px}
+.tool-card .tn .ic{font-size:13px}
+
+/* ── 連線狀態文字過渡 ─────────────────────────────────── */
+#st-conn{transition:color .4s var(--e-out)}
+
+/* ── 媒體查詢 ─────────────────────────────────────────── */
+@media (max-width:1180px){
+  .main{grid-template-columns:300px 1fr 260px;padding:12px}
+  .col-head{font-size:9.5px;letter-spacing:.24em}
+}
+@media (prefers-reduced-motion:reduce){
+  .sigil-outer,.sigil-mid,.sigil-core,.sigil-2 svg{animation:none}
+  *{animation-duration:.01s !important;transition-duration:.01s !important}
+}
+</style>
+</head>
+<body>
+<span class="sr-only">Raphael 環境感知系統介面</span>
+
+<!-- 大魔法陣（中央，淡） -->
+<div class="sigil" aria-hidden="true">
+<svg viewBox="0 0 800 800" fill="none" stroke="currentColor" stroke-width="0.5" style="color:#7fc7e8">
+  <g class="sigil-outer" style="transform-origin:400px 400px">
+    <circle cx="400" cy="400" r="380"/>
+    <circle cx="400" cy="400" r="372" stroke-dasharray="2 6"/>
+    <!-- 長刻度 12 點 -->
+    <g>
+      <line x1="400" y1="22" x2="400" y2="48"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(30 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(60 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(90 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(120 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(150 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(180 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(210 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(240 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(270 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(300 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(330 400 400)"/>
+    </g>
+    <!-- 24 短刻度 -->
+    <g opacity=".6">
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(15 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(45 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(75 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(105 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(135 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(165 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(195 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(225 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(255 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(285 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(315 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(345 400 400)"/>
+    </g>
+    <!-- 八邊形 -->
+    <polygon points="400,30 562,72 678,188 720,350 678,512 562,628 400,670 238,628 122,512 80,350 122,188 238,72" style="stroke:#e8c87a" opacity=".55"/>
+  </g>
+  <g class="sigil-mid" style="transform-origin:400px 400px">
+    <circle cx="400" cy="400" r="280"/>
+    <circle cx="400" cy="400" r="258" stroke-dasharray="4 8"/>
+    <polygon points="400,122 617,261 617,539 400,678 183,539 183,261" opacity=".55" style="stroke:#e8c87a"/>
+    <polygon points="400,144 594,289 527,511 273,511 206,289" opacity=".4"/>
+    <line x1="400" y1="122" x2="400" y2="678" opacity=".25"/>
+    <line x1="183" y1="261" x2="617" y2="539" opacity=".25"/>
+    <line x1="617" y1="261" x2="183" y2="539" opacity=".25"/>
+  </g>
+  <g class="sigil-core" style="transform-origin:400px 400px">
+    <circle cx="400" cy="400" r="160"/>
+    <circle cx="400" cy="400" r="138" stroke-dasharray="2 6"/>
+    <circle cx="400" cy="400" r="78" style="stroke:#e8c87a"/>
+    <polygon points="400,242 443,357 560,357 467,427 502,544 400,474 298,544 333,427 240,357 357,357" opacity=".5" style="stroke:#e8c87a"/>
+    <circle cx="400" cy="400" r="14" stroke-width="0.8" style="stroke:#e8c87a"/>
+    <circle cx="400" cy="400" r="3" fill="#e8c87a" stroke="none"/>
+  </g>
+</svg>
+</div>
+
+<!-- 角落小魔法陣 -->
+<div class="sigil-2" aria-hidden="true">
+<svg viewBox="0 0 400 400" fill="none" stroke="#7fc7e8" stroke-width="0.6" style="transform-origin:200px 200px">
+  <circle cx="200" cy="200" r="190" stroke-dasharray="6 12"/>
+  <circle cx="200" cy="200" r="140"/>
+  <polygon points="200,60 60,320 340,320" stroke="#e8c87a" opacity=".7"/>
+  <circle cx="200" cy="200" r="90"/>
+  <circle cx="200" cy="200" r="40" stroke-dasharray="2 4"/>
+</svg>
+</div>
+
+<!-- 頂列 -->
+<div class="topbar">
+  <span class="logo">OmniCore Raphael<span class="v">v2.0</span></span>
+  <span class="tagline">Ambient Perception · Great Sage Engine</span>
+  <div class="right">
+  </div>
+</div>
+
+<!-- 控制列 -->
+<div class="ctrlbar">
+  <span class="split-btn" id="split-connect">
+    <button class="btn btn-primary sb-main" id="btn-connect">連線</button>
+    <button class="btn btn-primary sb-arrow" id="btn-connect-menu" aria-label="連線設定"><span class="ic" data-i="chevron-down"></span></button>
+    <!-- LM Studio 式迷你載入面板 -->
+    <div class="quick-cfg" id="quick-cfg">
+      <div class="qc-head">
+        <span class="qc-title">連線設定 · Load Config</span>
+        <button class="qc-link" id="qc-open-settings">完整設定 →</button>
+      </div>
+
+      <div class="qc-group">語音輸出</div>
+      <div class="qc-row">
+        <label>音色</label>
+        <span class="sel-wrap"><select id="q-voice">
+          <option>Puck</option><option>Charon</option><option>Kore</option><option>Fenrir</option><option>Aoede</option>
+        </select></span>
+      </div>
+      <div class="qc-row">
+        <label>回應</label>
+        <span class="sel-wrap"><select id="q-respond">
+          <option>語音</option><option>文字</option>
+        </select></span>
+      </div>
+
+      <div class="qc-group">推論</div>
+      <div class="qc-row">
+        <label>思考</label>
+        <span class="sel-wrap"><select id="q-thinking">
+          <option>OFF</option><option>LOW</option><option>MED</option><option>HIGH</option>
+        </select></span>
+      </div>
+      <div class="qc-slider">
+        <div class="qcs-head"><span>上下文長度</span><b id="q-ctx-v">8192</b></div>
+        <input type="range" id="q-ctx" min="2048" max="32768" step="2048" value="8192">
+        <span class="qcs-hint">越長記得越多，記憶體用量越高</span>
+      </div>
+      <div class="qc-slider">
+        <div class="qcs-head"><span>溫度 Temperature</span><b id="q-temp-v">0.70</b></div>
+        <input type="range" id="q-temp" min="0" max="1.5" step="0.05" value="0.7">
+        <span class="qcs-hint">越高越有創造性，越低越穩定</span>
+      </div>
+
+      <div class="qc-group">感知</div>
+      <div class="qc-slider">
+        <div class="qcs-head"><span>語義漂移閾值</span><b id="q-drift-v">0.15</b></div>
+        <input type="range" id="q-drift" min="0.03" max="0.5" step="0.01" value="0.15">
+        <span class="qcs-hint">越低越敏感，越容易主動開口</span>
+      </div>
+      <div class="qc-slider">
+        <div class="qcs-head"><span>語義分析頻率</span><b id="q-fps-v">4 fps</b></div>
+        <input type="range" id="q-fps" min="1" max="20" step="1" value="4">
+        <span class="qcs-hint">預覽固定約 24 fps，這裡只調整辨識分析頻率</span>
+      </div>
+
+      <div class="qc-foot">
+        <label class="qc-check" id="qc-save-default">
+          <span class="cb"></span><span>儲存為預設值</span>
+        </label>
+      </div>
+    </div>
+  </span>
+
+  <button class="btn btn-danger" id="btn-disconnect">斷線</button>
+  <button class="btn btn-warn" id="btn-interrupt">■ 打斷</button>
+
+  <!-- 來源開關下拉（連線後出現，可即時斷來源）-->
+  <span class="src-menu" id="src-menu">
+    <button class="btn src-trigger" id="src-trigger">
+      <span class="ic" data-i="adjustments-horizontal"></span>來源<span class="ic" data-i="chevron-down" style="font-size:12px"></span>
+    </button>
+    <div class="src-dropdown" id="src-dropdown">
+      <div class="src-item" data-src="vision">
+        <span class="ic" data-i="video"></span><span class="si-label">影像</span><span class="sw" id="src-vision"></span>
+      </div>
+      <div class="src-item" data-src="audio">
+        <span class="ic" data-i="microphone"></span><span class="si-label">音訊</span><span class="sw on" id="src-audio"></span>
+      </div>
+      <div class="src-item" data-src="tool">
+        <span class="ic" data-i="tool"></span><span class="si-label">工具</span><span class="sw on" id="src-tool"></span>
+      </div>
+      <div class="src-item" data-src="memory">
+        <span class="ic" data-i="bulb"></span><span class="si-label">記憶</span><span class="sw on" id="src-memory"></span>
+      </div>
+    </div>
+  </span>
+
+  <span class="cfg-summary" id="cfg-summary" aria-hidden="true"></span>
+  <span class="spacer"></span>
+  <span class="tk" id="tk-count">0 tk</span>
+  <button class="icon-btn" id="btn-settings" aria-label="設定"><span class="ic" data-i="adjustments"></span></button>
+</div>
+
+<!-- 主格線 -->
+<div class="main" id="main">
+
+  <!-- 視覺感知 -->
+  <div class="col" id="col-left">
+    <div id="col-drag"></div>
+    <div class="col-head">
+      <span class="hdot"></span>
+      <span>視覺感知 · Vision</span>
+    </div>
+    <div class="cam-wrap">
+      <div class="cam" id="cam">
+        <div class="ph"><span class="ic" data-i="video-off"></span></div>
+        <span class="ov gate" id="gate-state">WATCHING</span>
+        <div class="ov fps"><span id="fps-cap">擷取 0</span><span id="fps-sem">語義 0</span></div>
+      </div>
+    </div>
+    <!-- 鏡頭下方：左(漂移+數值圖表) | 右(觸發事件) -->
+    <div class="vision-grid">
+      <div class="vg-left">
+        <div class="meta-chip drift-chip"><span class="ic" data-i="activity" style="color:var(--gold)"></span><span id="drift-text">漂移 0.00</span></div>
+        <div class="stats-panel">
+          <div class="evt-head" style="border-top:none;padding-left:0">即時數值 · Metrics</div>
+          <div class="stat-bars" id="stat-bars">
+            <div class="sbar"><span class="sb-k">擷取 FPS</span><div class="sb-track"><div class="sb-fill" id="sb-cap"></div></div><b class="sb-v" id="sb-cap-v">0</b></div>
+            <div class="sbar"><span class="sb-k">語義 FPS</span><div class="sb-track"><div class="sb-fill" id="sb-sem"></div></div><b class="sb-v" id="sb-sem-v">0</b></div>
+            <div class="sbar"><span class="sb-k">語義漂移</span><div class="sb-track"><div class="sb-fill alt" id="sb-drift"></div></div><b class="sb-v" id="sb-drift-v">0.00</b></div>
+            <div class="sbar"><span class="sb-k">光流像素</span><div class="sb-track"><div class="sb-fill danger" id="sb-flow"></div></div><b class="sb-v" id="sb-flow-v">0</b></div>
+            <div class="sbar"><span class="sb-k">ROI漂移</span><div class="sb-track"><div class="sb-fill alt" id="sb-roi"></div></div><b class="sb-v" id="sb-roi-v">0.00</b></div>
+            <div class="sbar"><span class="sb-k">變動框</span><div class="sb-track"><div class="sb-fill alt2" id="sb-obj"></div></div><b class="sb-v" id="sb-obj-v">0</b></div>
+          </div>
+          <div class="stat-foot"><span>Gate</span><b id="rs-gate">WATCHING</b></div>
+        </div>
+      </div>
+      <div class="vg-right">
+        <div class="evt-head" style="border-top:none;padding-left:0">觸發事件 · Events</div>
+        <div class="evt-log" id="evt-log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 對話 -->
+  <div class="col center" id="col-center">
+    <div class="col-head">
+      <span class="hdot"></span>
+      <span>對話 · Dialogue</span>
+    </div>
+    <div class="proactive-banner" id="proactive" style="display:none">
+      <span class="ic" data-i="bulb"></span><span id="proactive-text"></span>
+    </div>
+    <div class="conv" id="conv"></div>
+    <div class="vad-row">
+      <span class="mic-state" id="mic-state"><span class="ic" data-i="microphone"></span><span id="vad-text">待機</span></span>
+      <div class="vad-meter"><div class="vad-fill" id="vad-fill"></div></div>
+    </div>
+    <div class="input-row">
+      <button class="input-file-btn" id="btn-file" aria-label="附加檔案"><span class="ic" data-i="paperclip"></span></button>
+      <input id="file-input" type="file" multiple hidden>
+      <input id="text-input" placeholder="輸入訊息…  Enter 發送 · Shift+Enter 換行">
+      <button class="btn btn-primary" id="btn-send">發送</button>
+    </div>
+  </div>
+
+  <!-- 工具 / 記憶 -->
+  <div class="col" id="col-right">
+    <div id="col-drag-r"></div>
+    <div class="right-split">
+      <div class="col-head">
+        <span style="display:flex;align-items:center;gap:10px">
+          <span class="hdot" style="background:var(--pink);box-shadow:0 0 6px rgba(232,138,172,.55)"></span>
+          <span>工具 · 記憶</span>
+        </span>
+        <button class="collapse-btn" id="btn-collapse" aria-label="收合"><span class="ic" data-i="layout-sidebar-right-collapse"></span></button>
+      </div>
+      <div class="vert-label">工具 · 記憶</div>
+      <div class="tools-sec" id="tools-sec">
+        <div class="evt-head" style="border-top:none">工具調用 · Tool Calls</div>
+        <div class="sec-body" id="tools-body"></div>
+      </div>
+      <div id="row-drag-r"></div>
+      <div class="mem-sec" id="mem-sec">
+        <div class="evt-head">長期記憶 · Memory</div>
+        <div class="sec-body" id="mem-body"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 狀態列 -->
+<div class="statusbar">
+  <div class="s">回合 <b id="st-turns">0</b></div>
+  <div class="s">Tokens <b id="st-tokens">0</b></div>
+  <div class="s">感知事件 <b id="st-events">0</b></div>
+  <div class="s">工具呼叫 <b id="st-tools">0</b></div>
+  <span class="spacer"></span>
+  <div class="s" id="st-conn" style="color:var(--pink)">● 未連線</div>
+</div>
+
+<!-- 設定面板 · 分頁式 -->
+<div class="overlay" id="overlay">
+  <div class="settings" role="dialog" aria-label="展前設定">
+
+    <!-- 左：分頁導覽 -->
+    <aside class="settings-nav">
+      <div class="settings-brand">
+        <div class="nm">RAPHAEL</div>
+        <div class="sub">Configuration</div>
+      </div>
+      <div class="nav-list" id="nav-list">
+        <div class="nav-item active" data-pane="connect">
+          <span class="ic" data-i="plug"></span>
+          <span class="nm">連線</span>
+          <span class="num">I</span>
+        </div>
+        <div class="nav-item" data-pane="persona">
+          <span class="ic" data-i="bulb"></span>
+          <span class="nm">角色</span>
+          <span class="num">II</span>
+        </div>
+        <div class="nav-item" data-pane="perception">
+          <span class="ic" data-i="activity"></span>
+          <span class="nm">感知</span>
+          <span class="num">III</span>
+        </div>
+        <div class="nav-item" data-pane="dialogue">
+          <span class="ic" data-i="microphone"></span>
+          <span class="nm">對話</span>
+          <span class="num">IV</span>
+        </div>
+        <div class="nav-item" data-pane="system">
+          <span class="ic" data-i="tool"></span>
+          <span class="nm">系統</span>
+          <span class="num">V</span>
+        </div>
+      </div>
+      <div class="foot">
+        <span class="k">v2.0</span> · ambient
+      </div>
+    </aside>
+
+    <!-- 右：內容 -->
+    <main class="settings-main">
+      <div class="settings-head">
+        <h2 id="pane-title">角色 · Persona</h2>
+        <span class="sub" id="pane-sub">人格與行為原則 · 連線前設定</span>
+        <button class="icon-btn x" id="btn-close-settings" aria-label="關閉"><span class="ic" data-i="x"></span></button>
+      </div>
+
+      <div class="settings-body">
+        <!-- 連線（展前設定，連線後鎖定）-->
+        <section class="pane active" data-pane="connect">
+          <span class="hint" style="margin-bottom:4px">以下參數在連線時套用，連線後鎖定。展示中無需更動。</span>
+          <div class="grid2">
+            <div class="field">
+              <label>語音音色</label>
+              <span class="hint">Raphael 的說話聲線。</span>
+              <span class="sel-wrap"><select id="voice">
+                <option>Puck</option><option>Charon</option><option>Kore</option><option>Fenrir</option><option>Aoede</option>
+              </select></span>
+            </div>
+            <div class="field">
+              <label>思考強度 <span class="hint" style="display:inline">Thinking</span></label>
+              <span class="hint">越高越謹慎，延遲略增。</span>
+              <span class="sel-wrap"><select id="thinking">
+                <option>OFF</option><option>LOW</option><option>MED</option><option>HIGH</option>
+              </select></span>
+            </div>
+          </div>
+          <div class="field">
+            <label>音訊輸入來源</label>
+            <span class="hint">純 Web 模式使用瀏覽器麥克風；啟動 --perception 時可改用伺服器 VAD。</span>
+            <span class="sel-wrap"><select id="mic">
+              <option>瀏覽器麥克風</option><option>伺服器 VAD</option>
+            </select></span>
+          </div>
+
+          <div class="pane-section-label">連線時行為</div>
+          <div class="field">
+            <label>回應模式</label>
+            <span class="hint">Raphael 回覆使用語音或純文字。</span>
+            <span class="sel-wrap"><select id="set-respond">
+              <option>語音</option><option>文字</option>
+            </select></span>
+          </div>
+          <div class="field">
+            <span class="hint">影像 / 音訊 / 工具 / 記憶 等來源開關，連線後可於上方控制列「來源」選單即時切斷或恢復，無需重新連線。</span>
+          </div>
+        </section>
+
+        <!-- 角色 -->
+        <section class="pane" data-pane="persona">
+          <div class="field">
+            <label>System Prompt <span class="badge">展示中鎖定</span></label>
+            <span class="hint">Raphael 的人格與行為原則。對話中不可變更，需在連線前完成。</span>
+            <textarea id="set-persona" rows="6">你是 Raphael,一個環境感知 AI。你持續觀察使用者的環境，但只在真正值得提醒時才開口。每次場景變化先呼叫 log_observation 記錄，不重要就保持安靜。語氣自然、簡潔、像一位細心的夥伴。</textarea>
+          </div>
+
+          <div class="pane-section-label">語音與思考</div>
+          <div class="grid2">
+            <div class="toggle-card on" id="tog-thinking-trace">
+              <div class="tc-body">
+                <div class="tc-title">顯示思考軌跡</div>
+                <div class="tc-hint">在對話流中以淡灰色顯示 Raphael 的內部推理片段。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card" id="tog-bilingual">
+              <div class="tc-body">
+                <div class="tc-title">雙語回應</div>
+                <div class="tc-hint">偵測使用者語言時同步給出中／日／英對照。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 感知 -->
+        <section class="pane" data-pane="perception">
+          <div class="grid2">
+            <div class="slider-field">
+              <div class="top">
+                <label>語義漂移閾值</label>
+                <span class="val" id="set-drift-v">0.15</span>
+              </div>
+              <span class="hint">越低越敏感。畫面語義改變超過此值即觸發。</span>
+              <div class="track"><input type="range" id="set-drift" min="0.03" max="0.5" step="0.01" value="0.15"></div>
+              <div class="scale"><span>0.03</span><span>0.50</span></div>
+            </div>
+            <div class="slider-field">
+              <div class="top">
+                <label>送幀頻率</label>
+                <span class="val" id="set-fps-v">4</span>
+              </div>
+              <span class="hint">VisionGate 每秒語義分析次數；預覽畫面會獨立維持高幀率。</span>
+              <div class="track"><input type="range" id="set-fps" min="1" max="20" step="1" value="4"></div>
+              <div class="scale"><span>1 fps</span><span>20 fps</span></div>
+            </div>
+            <div class="slider-field">
+              <div class="top">
+                <label>VAD 閾值</label>
+                <span class="val" id="set-vad-v">0.027</span>
+              </div>
+              <span class="hint">人聲偵測靈敏度。值越低越容易觸發。</span>
+              <div class="track"><input type="range" id="set-vad" min="0.01" max="0.1" step="0.001" value="0.027"></div>
+              <div class="scale"><span>0.01</span><span>0.10</span></div>
+            </div>
+            <div class="slider-field">
+              <div class="top">
+                <label>記憶重要度過濾</label>
+                <span class="val" id="set-imp-v">1</span>
+              </div>
+              <span class="hint">低於此值的觀察不顯示於右欄記憶區。</span>
+              <div class="track"><input type="range" id="set-imp" min="1" max="5" step="1" value="1"></div>
+              <div class="scale"><span>1 · 全部</span><span>5 · 重要</span></div>
+            </div>
+          </div>
+
+          <div class="pane-section-label">Demo 安全開關</div>
+          <div class="grid2">
+            <div class="toggle-card on" id="tog-vision-gate">
+              <div class="tc-body">
+                <div class="tc-title">VisionGate 分析</div>
+                <div class="tc-hint">啟用場景漂移與快速移動判斷；關閉後只保留鏡頭預覽。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card on" id="tog-vision-overlay">
+              <div class="tc-body">
+                <div class="tc-title">視覺框線</div>
+                <div class="tc-hint">顯示 GLOBAL / FAST / 身份框；關閉後畫面更乾淨。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card on" id="tog-vision-proactive">
+              <div class="tc-body">
+                <div class="tc-title">Vision 主動事件</div>
+                <div class="tc-hint">允許視覺事件觸發主動開口；不影響使用者主動提問。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card" id="tog-visual-identity">
+              <div class="tc-body">
+                <div class="tc-title">圖像身份記憶</div>
+                <div class="tc-hint">辨識或註冊鏡頭中的人。展覽多人環境會認錯人，預設關閉。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card" id="tog-voice-identity">
+              <div class="tc-body">
+                <div class="tc-title">聲紋身份記憶</div>
+                <div class="tc-hint">用近期聲音輔助判斷說話者。展覽多人不可靠，預設關閉。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card" id="tog-mouth-sync">
+              <div class="tc-body">
+                <div class="tc-title">嘴部同步</div>
+                <div class="tc-hint">用嘴型判斷是否在對 Raphael 說話。定點鏡頭對不到主講人，預設關閉。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card" id="tog-advanced-voice-gate">
+              <div class="tc-body">
+                <div class="tc-title">智慧語音閘門</div>
+                <div class="tc-hint">結合視覺與身份訊號過濾背景聲。展覽預設關閉＝純串流給 Gemini 原生 VAD（反應最快）。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card on" id="tog-full-duplex">
+              <div class="tc-body">
+                <div class="tc-title">全雙工</div>
+                <div class="tc-hint">AI 說話中也能隨時插話(barge-in)，預設開啟。若用喇叭且出現自我打斷/跳針，關閉改回半雙工。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card" id="tog-voice-interrupt">
+              <div class="tc-body">
+                <div class="tc-title">語音打斷</div>
+                <div class="tc-hint">說話時自動打斷 AI。環境吵雜處建議關閉，否則會一直誤觸發。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card on" id="tog-computer-tools">
+              <div class="tc-body">
+                <div class="tc-title">電腦操作工具</div>
+                <div class="tc-hint">允許截圖、點擊、打字與快捷鍵；Demo 不需要時可關閉。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 對話 -->
+        <section class="pane" data-pane="dialogue">
+          <div class="toggle-card on" id="tog-proactive">
+            <div class="tc-body">
+              <div class="tc-title">主動開口</div>
+              <div class="tc-hint">允許 Raphael 在偵測到重要場景變化時主動發起對話。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+          <div class="toggle-card on" id="tog-interrupt">
+            <div class="tc-body">
+              <div class="tc-title">可被打斷</div>
+              <div class="tc-hint">使用者語音觸發時立即停止當前語音輸出。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+          <div class="toggle-card" id="tog-subtitle">
+            <div class="tc-body">
+              <div class="tc-title">隱藏字幕</div>
+              <div class="tc-hint">只播語音不顯示文字（適合純聲音體驗）。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+          <div class="toggle-card on" id="tog-task-voice">
+            <div class="tc-body">
+              <div class="tc-title">任務語音回報</div>
+              <div class="tc-hint">收到任務、工具進度、完成或卡住時，用短語音即時回報。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+        </section>
+
+        <!-- 系統 -->
+        <section class="pane" data-pane="system">
+          <div class="field">
+            <label>記憶帳號 <span class="badge">User Memory</span></label>
+            <span class="hint">每個帳號擁有獨立長期記憶。切換後，新對話會搜尋與寫入該帳號的記憶。</span>
+            <div class="inline-actions">
+              <span class="sel-wrap"><select id="memory-user"></select></span>
+              <input id="memory-user-new" type="text" placeholder="新增記憶帳號">
+              <button class="btn" id="btn-memory-add" type="button">新增</button>
+              <button class="btn btn-danger" id="btn-memory-delete" type="button">刪除</button>
+            </div>
+            <span class="hint" id="memory-user-status">目前帳號：讀取中</span>
+          </div>
+          <div class="pane-section-label">Minimax 工具代理</div>
+          <div class="grid2">
+            <div class="field">
+              <label>模型</label>
+              <span class="hint">用於背景工具執行與網站操作的模型名稱。</span>
+              <input id="minimax-model" type="text" value="minimaxai/minimax-m2.7">
+            </div>
+            <div class="field">
+              <label>API Base URL</label>
+              <span class="hint">OpenAI-compatible 端點；通常不需要改。</span>
+              <input id="minimax-base-url" type="url" value="https://integrate.api.nvidia.com/v1">
+            </div>
+            <div class="slider-field">
+              <div class="top">
+                <label>工具輪數上限</label>
+                <span class="val" id="set-mm-rounds-v">16</span>
+              </div>
+              <span class="hint">越高越能獨立工作，卡住時也會較晚停止。</span>
+              <div class="track"><input type="range" id="set-mm-rounds" min="4" max="64" step="1" value="16"></div>
+              <div class="scale"><span>4</span><span>64</span></div>
+            </div>
+            <div class="slider-field">
+              <div class="top">
+                <label>請求逾時秒數</label>
+                <span class="val" id="set-mm-timeout-v">180</span>
+              </div>
+              <span class="hint">網站慢或工具步驟較長時可提高。</span>
+              <div class="track"><input type="range" id="set-mm-timeout" min="20" max="600" step="10" value="180"></div>
+              <div class="scale"><span>20s</span><span>600s</span></div>
+            </div>
+            <div class="slider-field">
+              <div class="top">
+                <label>工具代理溫度</label>
+                <span class="val" id="set-mm-temp-v">0.20</span>
+              </div>
+              <span class="hint">越低越穩定；網站操作建議保持偏低。</span>
+              <div class="track"><input type="range" id="set-mm-temp" min="0" max="1.5" step="0.05" value="0.2"></div>
+              <div class="scale"><span>0.00</span><span>1.50</span></div>
+            </div>
+          </div>
+          <div class="pane-section-label">系統功能</div>
+          <div class="toggle-card on" id="tog-resume">
+            <div class="tc-body">
+              <div class="tc-title">Session Resumption</div>
+              <div class="tc-hint">斷線後自動以最近 session 無縫接續，保留上下文。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+          <div class="toggle-card on" id="tog-search">
+            <div class="tc-body">
+              <div class="tc-title">Google Search 工具</div>
+              <div class="tc-hint">允許 Raphael 在回答中即時查詢外部資訊。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+          <div class="toggle-card" id="tog-debug">
+            <div class="tc-body">
+              <div class="tc-title">除錯模式</div>
+              <div class="tc-hint">顯示原始 channel payload 與計時資訊（開發者用）。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="settings-foot">
+        <span class="hint"><kbd>⌘</kbd><kbd>K</kbd> 開啟 · <kbd>Esc</kbd> 關閉</span>
+        <span class="actions">
+          <button class="btn" id="btn-cancel-settings">取消</button>
+          <button class="btn btn-primary" id="btn-save-settings">儲存設定</button>
+        </span>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<script src="app.js"></script>
+<!-- 小巧思：鍵盤快捷鍵 / 細節互動 -->
+<script>
+(() => {
+  // ⌘/Ctrl + K 開啟設定，Esc 關閉
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      document.getElementById('overlay').classList.add('show');
+    }
+    if (e.key === 'Escape') {
+      document.getElementById('overlay').classList.remove('show');
+    }
+  });
+
+  // 按鈕點擊時極短的金色波紋（純 CSS 偽，加 class）
+  document.querySelectorAll('.btn,.icon-btn,.pill').forEach(el => {
+    el.addEventListener('pointerdown', () => el.dataset.press = '1');
+    el.addEventListener('pointerup',   () => delete el.dataset.press);
+    el.addEventListener('pointerleave',() => delete el.dataset.press);
+  });
+})();
+</script>
+</body>
+</html>

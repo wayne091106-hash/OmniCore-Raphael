@@ -1,0 +1,2401 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAPHAEL · Ambient Perception</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Noto+Serif+TC:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════════════════════════════
+   RAPHAEL · Ambient Perception — quiet glass build
+   設計原則：低調 / 優雅 / 流暢
+   效能策略：零 backdrop-filter、零 runtime blur、零 mix-blend-mode
+   ════════════════════════════════════════════════════════════════════ */
+:root{
+  /* base */
+  --bg-0:#070c1a;
+  --bg-1:#0a1124;
+  --bg-2:#0e1730;
+
+  /* poster palette */
+  --gold:#e8c87a;
+  --gold-bright:#f4dca0;
+  --gold-soft:#c9a85f;
+  --gold-deep:#8a6c2c;
+
+  --ice:#7fc7e8;
+  --ice-bright:#a8d8ef;
+  --ice-soft:#5a9fc4;
+  --ice-deep:#2d5c7e;
+
+  --ink:#dfe6f2;
+  --ink-soft:#9aa6bd;
+  --ink-mute:#5e6a82;
+  --ink-faint:#3a4254;
+
+  --line:rgba(127,199,232,.12);
+  --line-2:rgba(127,199,232,.22);
+  --line-gold:rgba(232,200,122,.16);
+
+  --green:#7fdcb3;
+  --amber:#f0b35a;
+  --pink:#e88aac;
+
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --serif:'Noto Serif TC',serif;
+  --display:'Cinzel',serif;
+
+  /* easing — Apple-flavored */
+  --e-out:cubic-bezier(.22,.61,.36,1);     /* standard ease-out */
+  --e-spring:cubic-bezier(.16,1,.3,1);     /* expo-out, used for entries */
+  --e-press:cubic-bezier(.4,0,.2,1);       /* press / state change */
+  --e-soft:cubic-bezier(.32,.72,0,1);      /* iOS-flavored soft glide */
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+*,*::before,*::after{
+  /* default easing for anyone who forgot to specify */
+  transition-timing-function:var(--e-out);
+}
+html,body{
+  height:100%;background:var(--bg-0);color:var(--ink);
+  font-family:var(--mono);font-size:13px;overflow:hidden;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+
+/* ── 背景：固定漸層，零動畫 ─────────────────────────────── */
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(45,72,120,.32), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 50% 110%, rgba(60,50,30,.20), transparent 62%),
+    linear-gradient(160deg,#0c1326 0%,#0a1124 45%,#070c1a 100%);
+}
+
+/* ── 魔法陣：淡 / 慢 / 單一動畫，僅 transform ─────────────── */
+.sigil{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(86vw,86vh);aspect-ratio:1;z-index:0;pointer-events:none;
+  opacity:.07;
+  /* will-change 預留合成層，避免每幀 layout */
+  will-change:transform;
+}
+.sigil svg{width:100%;height:100%;display:block}
+.sigil-outer{animation:spin 240s linear infinite}
+.sigil-mid  {animation:spin 180s linear infinite reverse}
+.sigil-core {animation:spin 120s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 第二個小魔法陣，在右下角，更淡 */
+.sigil-2{
+  position:fixed;right:-15vmin;bottom:-15vmin;
+  width:55vmin;aspect-ratio:1;z-index:0;pointer-events:none;
+  opacity:.045;will-change:transform;
+}
+.sigil-2 svg{width:100%;height:100%;animation:spin 320s linear infinite reverse}
+
+/* 所有面板層級 */
+.topbar,.ctrlbar,.main,.statusbar,.overlay{position:relative;z-index:2}
+.ctrlbar{z-index:30}  /* 高於 main，讓連線下拉浮在最上 */
+
+/* ════════════════════════════════════════════════════════════
+   TOPBAR
+   ════════════════════════════════════════════════════════════ */
+.topbar{
+  height:52px;display:flex;align-items:center;gap:18px;padding:0 24px;
+  background:linear-gradient(180deg,#0f1830,#0b1124);
+  border-bottom:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(255,255,255,.04) inset;
+}
+.topbar > *{flex-shrink:0}
+
+.logo{
+  font-family:var(--display);font-size:17px;font-weight:600;letter-spacing:.32em;
+  color:var(--gold);
+  padding-left:.32em;
+  text-shadow:0 0 16px rgba(232,200,122,.18);
+}
+.logo .v{
+  font-family:var(--mono);font-size:11px;font-weight:400;letter-spacing:.08em;
+  color:var(--ice-soft);margin-left:10px;opacity:.7;
+}
+.tagline{
+  font-family:var(--display);font-size:10px;color:var(--ice-soft);
+  letter-spacing:.42em;text-transform:uppercase;padding-left:.42em;
+  opacity:.7;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.topbar .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+
+/* pill */
+.pill{
+  font-size:10.5px;padding:5px 12px;letter-spacing:.18em;cursor:pointer;user-select:none;
+  border-radius:999px;color:var(--ink-mute);
+  background:transparent;
+  border:1px solid rgba(127,199,232,.14);
+  text-transform:uppercase;font-family:var(--display);font-weight:500;
+  white-space:nowrap;line-height:1.2;
+  transition:
+    color .25s var(--e-out),
+    border-color .25s var(--e-out),
+    background .25s var(--e-out),
+    box-shadow .3s var(--e-out),
+    transform .18s var(--e-out);
+}
+.pill:hover{color:var(--ink-soft);border-color:rgba(127,199,232,.3)}
+.pill:active{transform:scale(.96)}
+.pill.on{
+  color:var(--gold);
+  background:rgba(232,200,122,.06);
+  border-color:rgba(232,200,122,.4);
+}
+.pill .dot{
+  display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:currentColor;margin-right:7px;vertical-align:1.5px;
+  opacity:.4;transition:opacity .3s var(--e-out);
+}
+.pill.on .dot{
+  opacity:1;
+  animation:dot-pulse 2.4s ease-in-out infinite;
+}
+@keyframes dot-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+.tk{
+  font-family:var(--mono);font-size:11px;color:var(--ice-soft);letter-spacing:.06em;
+  padding:4px 10px;border-radius:5px;
+  background:rgba(127,199,232,.04);border:1px solid rgba(127,199,232,.1);
+}
+
+/* ════════════════════════════════════════════════════════════
+   CTRLBAR
+   ════════════════════════════════════════════════════════════ */
+.ctrlbar{
+  height:48px;display:flex;align-items:center;gap:10px;padding:0 24px;
+  background:#0a1124;
+  border-bottom:1px solid var(--line);
+}
+
+/* 統一輸入元件 */
+select,.btn{
+  font-family:var(--mono);font-size:12px;letter-spacing:.04em;
+  background:rgba(127,199,232,.04);
+  color:var(--ink-soft);
+  border:1px solid rgba(127,199,232,.14);
+  border-radius:6px;
+  padding:7px 14px;cursor:pointer;outline:none;
+  white-space:nowrap;line-height:1.2;
+  transition:
+    border-color .22s var(--e-out),
+    color .22s var(--e-out),
+    background .22s var(--e-out),
+    box-shadow .3s var(--e-out),
+    transform .18s var(--e-out);
+}
+select:hover,.btn:hover{
+  border-color:rgba(127,199,232,.32);
+  color:var(--ice-bright);
+  background:rgba(127,199,232,.07);
+  transform:translateY(-1px);
+}
+.btn:active{transform:translateY(0) scale(.97);transition-duration:.08s}
+
+/* 純 CSS 下拉箭頭：用 ::after 畫，由 JS 控制 .open class，避免 :focus-within 卡住 */
+.sel-wrap{position:relative;display:inline-flex}
+.sel-wrap select{appearance:none;-webkit-appearance:none;padding-right:30px}
+.sel-wrap::after{
+  content:'';position:absolute;right:12px;top:50%;
+  width:7px;height:7px;
+  border-right:1.2px solid var(--ice-soft);
+  border-bottom:1.2px solid var(--ice-soft);
+  transform:translateY(-65%) rotate(45deg);
+  pointer-events:none;
+  transition:transform .35s var(--e-spring),border-color .25s var(--e-out);
+}
+.sel-wrap:hover::after{border-color:var(--ice-bright)}
+.sel-wrap.open::after{
+  transform:translateY(-25%) rotate(-135deg);
+  border-color:var(--gold);
+}
+select option{background:#0a1124;color:var(--ink)}
+
+/* 連線後鎖定的展前欄位 */
+select:disabled,textarea:disabled{
+  opacity:.5;cursor:not-allowed;
+}
+.sel-wrap:has(select:disabled)::after{opacity:.3}
+.sel-wrap:has(select:disabled){position:relative}
+.sel-wrap:has(select:disabled)::before{
+  content:'已鎖定';position:absolute;right:30px;top:50%;transform:translateY(-50%);
+  font-size:9px;color:var(--gold-soft);letter-spacing:.1em;pointer-events:none;opacity:.7;
+}
+
+.btn-primary{
+  background:rgba(232,200,122,.1);
+  border-color:rgba(232,200,122,.4);
+  color:var(--gold-bright);font-weight:500;
+}
+.btn-primary:hover{
+  background:rgba(232,200,122,.16);
+  border-color:rgba(232,200,122,.6);
+  box-shadow:0 0 14px rgba(232,200,122,.12);
+}
+.btn-danger{color:var(--pink);border-color:rgba(232,138,172,.3)}
+.btn-danger:hover{
+  background:rgba(232,138,172,.06);
+  border-color:rgba(232,138,172,.5);
+  color:#f4b2cc;
+}
+.btn-warn{color:var(--amber);border-color:rgba(240,179,90,.3)}
+.btn-warn:hover{
+  background:rgba(240,179,90,.06);
+  border-color:rgba(240,179,90,.5);
+}
+
+.ctrlbar .spacer{flex:1}
+
+/* 連線後顯示的唯讀配置摘要膠囊 */
+.cfg-summary{
+  display:none;align-items:center;gap:10px;
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.04em;
+  padding:5px 13px;border-radius:999px;
+  background:rgba(127,199,232,.04);border:1px solid var(--line);
+  animation:fade-down .4s var(--e-out);
+}
+.cfg-summary.show{display:inline-flex}
+.cfg-summary .sep{width:1px;height:11px;background:var(--line-2)}
+.cfg-summary b{color:var(--gold-soft);font-weight:500}
+/* 連線後隱藏「連線」鈕，露出斷線/打斷 */
+.ctrlbar.live #split-connect{display:none}
+.ctrlbar:not(.live) #btn-disconnect,
+.ctrlbar:not(.live) #btn-interrupt{display:none}
+
+/* ── 連線分割按鈕 ─────────────────────────────────────── */
+.split-btn{position:relative;display:inline-flex;align-items:stretch}
+.split-btn .sb-main{border-top-right-radius:0;border-bottom-right-radius:0;border-right:none}
+.split-btn .sb-arrow{
+  border-top-left-radius:0;border-bottom-left-radius:0;
+  padding:7px 9px;display:inline-flex;align-items:center;
+}
+.split-btn .sb-arrow .ic{font-size:14px;transition:transform .3s var(--e-spring)}
+.split-btn.open .sb-arrow .ic{transform:rotate(180deg)}
+/* 快速設定下拉面板（LM Studio 式載入面板）*/
+.quick-cfg{
+  position:absolute;top:calc(100% + 8px);left:0;z-index:200;
+  width:300px;max-height:72vh;overflow-y:auto;padding:0;
+  background:linear-gradient(165deg,#101a35,#0a1020);
+  border:1px solid var(--line-2);border-radius:11px;
+  box-shadow:0 22px 56px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
+  opacity:0;transform:translateY(-6px) scale(.98);pointer-events:none;
+  transition:opacity .25s var(--e-out),transform .3s var(--e-spring);
+}
+.split-btn.open .quick-cfg{opacity:1;transform:none;pointer-events:auto}
+.quick-cfg .qc-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 15px 11px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:linear-gradient(165deg,#101a35,#0d1428);z-index:1;
+}
+.quick-cfg .qc-title{font-family:var(--display);font-size:12px;letter-spacing:.12em;
+  color:var(--gold-bright);text-transform:uppercase}
+.quick-cfg .qc-group{
+  font-family:var(--display);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--ice-soft);padding:12px 15px 5px;opacity:.8;
+}
+.quick-cfg .qc-row{display:flex;align-items:center;gap:10px;padding:4px 15px 7px}
+.quick-cfg .qc-row label{
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-soft);
+  width:46px;flex-shrink:0;
+}
+.quick-cfg .qc-row .sel-wrap{flex:1}
+.quick-cfg .qc-row select{width:100%;font-size:11px;padding:6px 28px 6px 10px}
+/* slider 區塊 */
+.quick-cfg .qc-slider{padding:5px 15px 9px}
+.quick-cfg .qcs-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.quick-cfg .qcs-head span{font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.03em}
+.quick-cfg .qcs-head b{font-family:var(--mono);font-size:11px;color:var(--gold-soft);font-weight:500}
+.quick-cfg .qc-slider input[type=range]{width:100%;accent-color:var(--gold);height:4px}
+.quick-cfg .qcs-hint{display:block;font-size:9.5px;color:var(--ink-mute);margin-top:4px;opacity:.75}
+.quick-cfg .qc-foot{
+  padding:11px 15px 13px;border-top:1px solid var(--line);margin-top:4px;
+  position:sticky;bottom:0;background:linear-gradient(165deg,#0d1428,#0a1020);
+}
+.quick-cfg .qc-check{display:flex;align-items:center;gap:8px;cursor:pointer;
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);user-select:none}
+.quick-cfg .qc-check .cb{
+  width:16px;height:16px;border-radius:4px;border:1px solid var(--line-2);
+  background:rgba(127,199,232,.04);position:relative;transition:.2s;flex-shrink:0;
+}
+.quick-cfg .qc-check.on .cb{background:var(--gold);border-color:var(--gold)}
+.quick-cfg .qc-check.on .cb::after{content:'';position:absolute;left:5px;top:2px;
+  width:4px;height:8px;border:solid #0a1020;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.quick-cfg .qc-link{
+  background:none;border:none;color:var(--gold-soft);cursor:pointer;
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:2px 4px;
+  transition:color .2s var(--e-out);
+}
+.quick-cfg .qc-link:hover{color:var(--gold-bright)}
+
+/* 來源開關下拉（連線後出現）*/
+.src-menu{position:relative;display:none}
+.ctrlbar.live .src-menu{display:inline-flex}
+.src-trigger{display:inline-flex;align-items:center;gap:6px;color:var(--ice-soft)}
+.src-trigger .ic:first-child{font-size:15px}
+.src-dropdown{
+  position:absolute;top:calc(100% + 8px);left:0;z-index:200;min-width:180px;padding:6px;
+  background:linear-gradient(165deg,#101a35,#0a1020);
+  border:1px solid var(--line-2);border-radius:10px;
+  box-shadow:0 18px 44px rgba(0,0,0,.55);
+  opacity:0;transform:translateY(-6px);pointer-events:none;
+  transition:opacity .22s var(--e-out),transform .28s var(--e-spring);
+}
+.src-menu.open .src-dropdown{opacity:1;transform:none;pointer-events:auto}
+.src-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;
+  transition:background .15s var(--e-out)}
+.src-item:hover{background:rgba(127,199,232,.05)}
+.src-item .ic{font-size:15px;color:var(--ice-soft);flex-shrink:0}
+.src-item .si-label{flex:1;font-family:var(--mono);font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
+.src-item .sw{width:32px;height:18px;border-radius:11px;background:rgba(127,199,232,.1);
+  border:1px solid var(--line);position:relative;transition:.2s;flex-shrink:0}
+.src-item .sw::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;
+  background:var(--ink-mute);top:2px;left:2px;transition:.2s}
+.src-item .sw.on{background:rgba(232,200,122,.25);border-color:var(--gold)}
+.src-item .sw.on::after{left:15px;background:var(--gold)}
+
+/* ── 左欄鏡頭下方：左(漂移+數值圖表) | 右(觸發事件) ───── */
+.vision-grid{
+  flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  padding:0 14px 14px;
+}
+.vg-left{display:flex;flex-direction:column;gap:8px;min-height:0}
+.vg-right{display:flex;flex-direction:column;min-height:0;
+  border:1px solid var(--line);border-radius:8px;background:rgba(127,199,232,.02);
+  overflow:hidden;padding:10px 0 0}
+.vg-right .evt-head{padding:0 12px 6px!important}
+.stats-panel .evt-head{padding-top:0!important;padding-left:0!important}
+.tools-sec .evt-head{padding-top:11px!important}
+.vg-right .evt-log{flex:1;overflow-y:auto;padding:0 10px 10px}
+.drift-chip{height:32px;min-height:32px;max-height:32px;padding:5px 10px;box-sizing:border-box}
+.drift-chip .ic{font-size:12px}
+#drift-text{font-size:11px}
+.stats-panel{
+  flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;
+  border:1px solid var(--line);border-radius:8px;background:rgba(127,199,232,.02);
+  padding:12px 13px;overflow-y:auto;
+}
+.stat-bars{display:flex;flex-direction:column;gap:11px;flex:1}
+.sbar{display:grid;grid-template-columns:54px 1fr 34px;align-items:center;gap:8px}
+.sbar .sb-k{font-family:var(--mono);font-size:9.5px;color:var(--ink-mute);letter-spacing:.02em;white-space:nowrap}
+.sbar .sb-track{height:5px;border-radius:3px;background:rgba(127,199,232,.07);overflow:hidden}
+.sbar .sb-fill{height:100%;width:10%;border-radius:3px;
+  background:linear-gradient(90deg,rgba(127,199,232,.4),var(--ice));
+  transition:width .35s var(--e-out)}
+.sbar .sb-fill.alt{background:linear-gradient(90deg,rgba(232,200,122,.4),var(--gold))}
+.sbar .sb-fill.alt2{background:linear-gradient(90deg,rgba(127,220,179,.4),var(--green))}
+.sbar .sb-v{font-family:var(--mono);font-size:11px;color:var(--ice-bright);text-align:right;font-weight:500}
+.stat-foot{display:flex;justify-content:space-between;align-items:center;
+  padding-top:8px;border-top:1px dashed var(--line);
+  font-family:var(--mono);font-size:10px;color:var(--ink-mute)}
+.stat-foot b{color:var(--gold-soft);font-weight:500;letter-spacing:.08em}
+
+/* ── 中欄麥克風狀態（整合進 VAD row）──────────────────── */
+.mic-state{
+  display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.04em;
+  padding:3px 10px;border-radius:999px;
+  background:rgba(127,199,232,.04);border:1px solid var(--line);
+  transition:color .3s var(--e-out),border-color .3s var(--e-out),background .3s var(--e-out);
+}
+.mic-state .ic{font-size:13px;color:var(--ice-soft);transition:color .3s var(--e-out)}
+.mic-state.speaking{
+  color:var(--gold);border-color:rgba(232,200,122,.4);background:rgba(232,200,122,.06);
+}
+.mic-state.speaking .ic{color:var(--gold)}
+
+/* ── 右欄左邊界拖曳 ───────────────────────────────────── */
+#col-right{position:relative;min-width:0}
+#col-right .col-head{justify-content:space-between}
+#col-drag-r{
+  position:absolute;top:0;left:-3px;width:10px;height:100%;cursor:col-resize;z-index:25;
+}
+#col-drag-r::after{
+  content:'';position:absolute;left:3px;top:50%;transform:translateY(-50%);
+  width:3px;height:48px;border-radius:3px;background:var(--gold-soft);
+  opacity:0;transition:opacity .25s var(--e-out);
+}
+#col-drag-r:hover::after,#col-drag-r.dragging::after{opacity:.9}
+
+/* ── 中間拖動線（置於中欄右邊界）────────────────────── */
+/* （已移除：改由右欄左邊界統一控制右欄寬度）*/
+
+/* 頂列 pill 未連線時隱藏（連線後才是來源開關）*/
+.pill.src-toggle{display:none}
+.connected .pill.src-toggle{display:inline-flex}
+.icon-btn{
+  width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(127,199,232,.04);
+  border:1px solid rgba(127,199,232,.14);border-radius:6px;
+  cursor:pointer;color:var(--ice-soft);
+  transition:
+    color .22s var(--e-out),
+    border-color .22s var(--e-out),
+    background .22s var(--e-out),
+    transform .18s var(--e-out),
+    box-shadow .3s var(--e-out);
+}
+.icon-btn:hover{
+  border-color:rgba(232,200,122,.45);color:var(--gold);
+  background:rgba(232,200,122,.05);
+  transform:translateY(-1px);
+}
+.icon-btn:active{transform:translateY(0) scale(.93);transition-duration:.08s}
+
+/* ════════════════════════════════════════════════════════════
+   MAIN GRID
+   ════════════════════════════════════════════════════════════ */
+.main{
+  display:grid;grid-template-columns:360px 1fr 320px;
+  height:calc(100vh - 100px);gap:14px;padding:14px 18px;
+  transition:grid-template-columns 0.45s var(--e-soft);
+}
+.main.dragging{
+  transition:none !important;
+}
+/* 收合寬度由 JS applyGrid() 用 inline style 控制，避免與拖曳衝突 */
+
+.col{
+  display:flex;flex-direction:column;min-height:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.012),transparent 40%),
+             linear-gradient(165deg,#101a35 0%,#0b1226 60%,#0a1022 100%);
+  border:1px solid var(--line);
+  border-radius:10px;
+  box-shadow:0 14px 36px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05);
+  overflow:hidden;
+  position:relative;
+}
+.col > *{position:relative}
+
+/* 面板頂緣的一道金/冰漸層細光 — poster 的標題線 */
+.col::before{
+  content:'';position:absolute;top:0;left:14%;right:14%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(127,199,232,.5),rgba(232,200,122,.4),rgba(127,199,232,.5),transparent);
+  pointer-events:none;
+}
+
+.col-head{
+  height:40px;display:flex;align-items:center;gap:10px;padding:0 18px;
+  font-family:var(--display);font-size:10.5px;color:var(--ice-soft);
+  letter-spacing:.32em;text-transform:uppercase;font-weight:500;
+  border-bottom:1px solid var(--line);flex-shrink:0;
+  white-space:nowrap;overflow:hidden;
+}
+.col-head .num,.col-head .hdot{flex-shrink:0}
+.col-head .num{
+  font-family:var(--display);font-size:10px;font-weight:600;color:var(--gold);
+  padding:2px 7px;border:1px solid rgba(232,200,122,.28);border-radius:3px;
+  letter-spacing:.14em;
+}
+.col-head .hdot{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--gold);box-shadow:0 0 6px rgba(232,200,122,.5);
+  animation:dot-pulse 3s ease-in-out infinite;
+}
+
+/* ── 左欄：視覺感知 ─────────────────────────────────────── */
+.cam-wrap{padding:14px;flex-shrink:0}
+.cam{
+  position:relative;width:100%;aspect-ratio:4/3;overflow:hidden;
+  border-radius:7px;
+  background:radial-gradient(ellipse at center,#0e1830 0%,#070c1a 100%);
+  border:1px solid var(--line-2);
+  transition:border-color .35s var(--e-out),box-shadow .45s var(--e-out);
+}
+.cam.active{
+  border-color:rgba(232,200,122,.38);
+  box-shadow:0 0 18px rgba(232,200,122,.1);
+  animation:cam-breathe 5.5s ease-in-out infinite;
+}
+@keyframes cam-breathe{
+  0%,100%{box-shadow:0 0 14px rgba(232,200,122,.08),inset 0 0 0 1px rgba(232,200,122,.02)}
+  50%{box-shadow:0 0 22px rgba(232,200,122,.18),inset 0 0 0 1px rgba(232,200,122,.05)}
+}
+.cam img{width:100%;height:100%;object-fit:cover;display:block}
+.cam .ph{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:rgba(127,199,232,.15);font-size:46px;
+}
+/* 內描邊高光、極弱掃描線 */
+.cam::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(127,199,232,.018) 3px,rgba(127,199,232,.018) 4px);
+}
+.cam .ov{
+  position:absolute;font-size:10px;padding:2px 7px;border-radius:3px;letter-spacing:.12em;
+  background:rgba(7,12,26,.78);color:var(--gold);
+  border:1px solid rgba(232,200,122,.2);
+  font-family:var(--mono);text-transform:uppercase;
+}
+.cam .fps{left:10px;bottom:10px;display:flex;gap:6px}
+.cam .gate{right:10px;top:10px;color:var(--ice-bright);border-color:rgba(127,199,232,.22)}
+
+.sense-meta{display:flex;gap:10px;margin-top:10px}
+.meta-chip{
+  flex:1;padding:7px 11px;display:flex;align-items:center;gap:8px;
+  font-size:11px;color:var(--ink-soft);
+  background:rgba(127,199,232,.03);
+  border:1px solid var(--line);border-radius:6px;
+  transition:border-color .25s var(--e-out),background .25s var(--e-out),transform .25s var(--e-out);
+}
+.meta-chip:hover{border-color:var(--line-2);background:rgba(127,199,232,.05);transform:translateY(-1px)}
+
+.evt-head{
+  padding:11px 18px 6px;
+  font-family:var(--display);font-size:9.5px;color:var(--ice-soft);
+  letter-spacing:.32em;font-weight:500;text-transform:uppercase;
+  border-top:1px solid var(--line);flex-shrink:0;opacity:.85;
+}
+.evt-log{flex:1;overflow-y:auto;padding:4px 12px 12px;scroll-behavior:smooth}
+.evt{
+  display:flex;gap:9px;align-items:baseline;padding:5px 10px;
+  border-left:2px solid var(--line-2);margin-top:3px;font-size:11px;
+  border-radius:0 4px 4px 0;
+  background:transparent;
+  transition:background .3s var(--e-out);
+  animation:slide-in .45s var(--e-spring);
+}
+.evt:hover{background:rgba(127,199,232,.04)}
+@keyframes slide-in{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+.evt .k{color:var(--ink-soft);font-weight:500;flex-shrink:0;font-family:var(--mono);font-size:10.5px}
+.evt .d{color:var(--ink-mute);font-size:10px}
+.evt.appeared .k{color:var(--green)}.evt.appeared{border-left-color:rgba(127,220,179,.45)}
+.evt.leave    .k{color:var(--ink-soft)}.evt.leave   {border-left-color:rgba(166,176,194,.3)}
+.evt.enter    .k{color:var(--gold)}    .evt.enter   {border-left-color:rgba(232,200,122,.45)}
+.evt.moved    .k{color:var(--ice-bright)}.evt.moved {border-left-color:rgba(127,199,232,.5)}
+
+/* ── 中欄 ─────────────────────────────────────────────── */
+.center{}
+.proactive-banner{
+  margin:12px 18px 0;padding:9px 13px;
+  background:rgba(232,200,122,.06);
+  border:1px solid rgba(232,200,122,.28);
+  border-radius:6px;display:flex;align-items:center;gap:10px;
+  font-size:12px;color:var(--gold);flex-shrink:0;
+  animation:fade-down .35s var(--e-out);
+  letter-spacing:.04em;
+}
+@keyframes fade-down{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+.conv{flex:1;overflow-y:auto;padding:18px 24px;display:flex;flex-direction:column;gap:6px;scroll-behavior:smooth}
+.msg-label{
+  font-family:var(--display);font-size:9px;letter-spacing:.32em;
+  margin:12px 0 4px;color:var(--ink-mute);text-transform:uppercase;font-weight:500;
+}
+.msg-label.user{text-align:right;color:rgba(232,200,122,.55)}
+.msg-label.rae{color:var(--ice-bright);opacity:.85}
+
+.bubble{
+  max-width:78%;padding:11px 16px;border-radius:10px;font-size:14px;
+  line-height:1.65;color:var(--ink);font-family:var(--serif);font-weight:400;letter-spacing:.01em;
+  animation:bubble-in .4s var(--e-out);
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.02);
+}
+@keyframes bubble-in{
+  from{opacity:0;transform:translateY(6px) scale(.98)}
+  to  {opacity:1;transform:none}
+}
+.bubble.rae{
+  background:linear-gradient(150deg,rgba(127,199,232,.08),rgba(127,199,232,.02));
+  border-color:rgba(127,199,232,.22);
+  align-self:flex-start;border-top-left-radius:3px;
+}
+.bubble.user{
+  background:linear-gradient(150deg,rgba(232,200,122,.09),rgba(232,200,122,.02));
+  border-color:rgba(232,200,122,.24);
+  color:#f0e6c8;
+  align-self:flex-end;border-top-right-radius:3px;
+}
+.bubble.sys{
+  background:rgba(127,199,232,.04);border-color:rgba(127,199,232,.12);
+  color:var(--ink-soft);font-size:12px;align-self:stretch;max-width:100%;font-family:var(--mono);
+}
+.bubble.tool{
+  background:rgba(232,138,172,.04);
+  border-color:rgba(232,138,172,.2);
+  align-self:stretch;max-width:100%;font-size:12px;color:var(--pink);
+  display:flex;align-items:center;gap:10px;font-family:var(--mono);
+}
+.bubble.tool.result{color:#a8debe;
+  background:rgba(127,220,179,.04);
+  border-color:rgba(127,220,179,.2);
+}
+.bubble.tool code{
+  color:var(--gold-bright);word-break:break-all;
+  background:rgba(0,0,0,.25);padding:1px 6px;border-radius:3px;font-size:11px;
+}
+
+/* VAD */
+.vad-row{
+  display:flex;align-items:center;gap:12px;padding:8px 24px;
+  border-top:1px solid var(--line);flex-shrink:0;
+}
+.vad-row .lbl{
+  font-family:var(--display);font-size:9px;color:var(--ice-soft);
+  letter-spacing:.32em;font-weight:500;opacity:.7;
+}
+.vad-meter{
+  flex:1;height:5px;border-radius:3px;overflow:hidden;
+  background:rgba(127,199,232,.06);
+  border:1px solid rgba(127,199,232,.08);
+}
+.vad-fill{
+  height:100%;width:4%;border-radius:2px;
+  background:linear-gradient(90deg,rgba(127,199,232,.4),var(--ice));
+  transition:width .08s linear,background .4s var(--e-out),box-shadow .4s var(--e-out);
+}
+.vad-fill.speaking{
+  background:linear-gradient(90deg,var(--gold),var(--gold-bright));
+  box-shadow:0 0 8px rgba(232,200,122,.35);
+}
+
+.input-row{display:flex;gap:10px;padding:12px 24px 16px;flex-shrink:0}
+.input-row input{
+  flex:1;font-family:var(--serif);font-size:14px;
+  background:rgba(127,199,232,.03);
+  color:var(--ink);
+  border:1px solid var(--line);border-radius:7px;padding:10px 14px;outline:none;
+  transition:border-color .25s var(--e-out),box-shadow .3s var(--e-out),background .25s var(--e-out);
+}
+.input-row input:hover{border-color:rgba(127,199,232,.22)}
+.input-row input:focus{
+  border-color:rgba(232,200,122,.4);
+  box-shadow:0 0 0 3px rgba(232,200,122,.08);
+  background:rgba(127,199,232,.05);
+}
+.input-row input::placeholder{color:var(--ink-mute);font-family:var(--serif)}
+
+/* ── 右欄 ─────────────────────────────────────────────── */
+.right-split{display:flex;flex-direction:column;min-height:0;height:100%}
+.tools-sec{display:flex;flex-direction:column;min-height:60px;flex:1 1 50%;overflow:hidden;border-bottom:1px solid var(--line)}
+.mem-sec{display:flex;flex-direction:column;min-height:60px;flex:1 1 50%;overflow:hidden}
+/* 上下分界拖曳把手 */
+#row-drag-r{height:7px;cursor:row-resize;position:relative;flex-shrink:0;background:transparent}
+#row-drag-r::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:48px;height:3px;border-radius:3px;background:var(--gold-soft);opacity:.25;
+  transition:opacity .25s var(--e-out),width .25s var(--e-out)}
+#row-drag-r:hover::after,#row-drag-r.dragging::after{opacity:.9;width:72px}
+.tools-sec{flex:1;display:flex;flex-direction:column;min-height:0;border-bottom:1px solid var(--line)}
+.mem-sec{flex:1;display:flex;flex-direction:column;min-height:0}
+.sec-body{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+
+.tool-card{
+  background:rgba(232,138,172,.04);
+  border:1px solid rgba(232,138,172,.18);
+  border-radius:6px;padding:9px 11px;
+  animation:bubble-in .4s var(--e-out);
+  transition:border-color .25s var(--e-out),background .25s var(--e-out),transform .3s var(--e-out);
+}
+.tool-card:hover{border-color:rgba(232,138,172,.32);background:rgba(232,138,172,.06);transform:translateY(-1px)}
+.tool-card .tn{color:var(--pink);font-size:12px;font-weight:500;display:flex;align-items:center;gap:7px;font-family:var(--mono)}
+.tool-card .ta{color:var(--ink-mute);font-size:10px;margin-top:4px;word-break:break-all;font-family:var(--mono)}
+.tool-card .tr{
+  color:#a8debe;font-size:10px;margin-top:5px;padding-top:5px;
+  border-top:1px dashed var(--line);word-break:break-all;font-family:var(--mono);
+}
+.tool-card.pending{border-color:rgba(240,179,90,.3)}
+.tool-card.pending .tn{color:var(--amber)}
+
+.mem-card{
+  padding:8px 12px;border-radius:6px;
+  border:1px solid var(--line-gold);
+  border-left:2px solid rgba(232,200,122,.5);
+  background:rgba(232,200,122,.04);
+  animation:bubble-in .4s var(--e-out);
+  transition:border-color .25s var(--e-out),background .25s var(--e-out),transform .3s var(--e-out);
+}
+.mem-card:hover{background:rgba(232,200,122,.07);transform:translateY(-1px)}
+.mem-card .mt{
+  color:var(--gold);font-family:var(--display);font-size:9px;letter-spacing:.3em;
+  margin-bottom:3px;text-transform:uppercase;font-weight:500;
+}
+.mem-card.user{border-left-color:rgba(127,220,179,.5);
+  background:rgba(127,220,179,.03);border-color:rgba(127,220,179,.15)}
+.mem-card.user .mt{color:var(--green)}
+.mem-card .mc{font-size:13px;color:var(--ink);line-height:1.5;font-family:var(--serif)}
+.mem-card .imp{font-family:var(--mono);font-size:9px;color:var(--ink-mute);float:right;letter-spacing:.06em}
+
+/* ── 收合 ─────────────────────────────────────────────── */
+.collapse-btn{
+  width:auto;background:none;border:none;color:var(--ice-soft);cursor:pointer;
+  padding:6px;display:flex;align-items:center;justify-content:center;
+  transition:color .22s var(--e-out),transform .22s var(--e-out);
+}
+.collapse-btn:hover{color:var(--gold)}
+.collapse-btn:active{transform:scale(.92)}
+.mem-collapsed .right-split .col-head>span:first-child{display:none !important}
+.mem-collapsed .right-split .sec-body,
+.mem-collapsed .right-split .tools-sec,
+.mem-collapsed .right-split .mem-sec,
+.mem-collapsed .right-split .mem-sec .evt-head,
+.mem-collapsed #row-drag-r{display:none}
+.mem-collapsed .right-split .col-head{justify-content:center !important;padding:0 !important;border-bottom-color:transparent}
+/* 收合前不占版面，避免「工具調用」標題下方出現整塊隱形空白 */
+.vert-label{
+  display:none;writing-mode:vertical-rl;font-family:var(--display);
+  font-size:10px;letter-spacing:.32em;color:var(--ice-soft);
+  padding:14px 0;text-align:center;margin:0 auto;text-transform:uppercase;
+  opacity:0;transform:translateY(10px);
+  transition:opacity 0.35s var(--e-out), transform 0.35s var(--e-out);
+  pointer-events:none;
+}
+.mem-collapsed .vert-label{
+  display:block;opacity:0.7;transform:translateY(0);pointer-events:auto;
+}
+.mem-collapsed #col-drag-r{display:none}
+
+/* ── 收合後面板外觀優化 ── */
+.mem-collapsed#col-right {
+  background: linear-gradient(180deg, rgba(16, 26, 53, 0.3) 0%, rgba(10, 16, 34, 0.45) 100%);
+  border-color: rgba(127, 199, 232, 0.08);
+  box-shadow: none;
+  transition: background 0.3s var(--e-out), border-color 0.3s var(--e-out), box-shadow 0.3s var(--e-out);
+}
+.mem-collapsed#col-right:hover {
+  background: linear-gradient(180deg, rgba(16, 26, 53, 0.45) 0%, rgba(10, 16, 34, 0.6) 100%);
+  border-color: rgba(127, 199, 232, 0.2);
+  box-shadow: 0 0 15px rgba(127, 199, 232, 0.05);
+}
+.mem-collapsed#col-right::before {
+  display:none;
+}
+
+/* ── 狀態列 ────────────────────────────────────────────── */
+.statusbar{
+  height:30px;display:flex;align-items:center;gap:22px;padding:0 24px;
+  background:#0a1124;
+  border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:11px;color:var(--ink-mute);
+}
+.statusbar .s{display:flex;gap:7px;align-items:center;letter-spacing:.04em}
+.statusbar .s b{color:var(--ice-bright);font-weight:500;transition:color .35s var(--e-out)}
+.statusbar .spacer{flex:1}
+
+/* ════════════════════════════════════════════════════════════
+   SETTINGS · 全新雙欄式設定面板
+   左：分頁導覽（含小符紋裝飾）
+   右：滾動內容區
+   ════════════════════════════════════════════════════════════ */
+.overlay{
+  position:fixed;inset:0;
+  background:radial-gradient(ellipse at center,rgba(10,15,30,.65) 0%,rgba(5,8,18,.88) 70%);
+  display:flex;align-items:center;justify-content:center;z-index:50;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .32s var(--e-out),visibility 0s linear .32s;
+}
+.overlay.show{
+  opacity:1;visibility:visible;pointer-events:auto;
+  transition:opacity .32s var(--e-out),visibility 0s linear 0s;
+}
+
+.settings{
+  width:min(880px,94vw);height:min(620px,86vh);
+  display:grid;grid-template-columns:220px 1fr;
+  background:linear-gradient(165deg,#131c36 0%,#0b1226 60%,#0a1022 100%);
+  border:1px solid rgba(127,199,232,.22);
+  border-radius:14px;
+  box-shadow:
+    0 32px 80px rgba(0,0,0,.7),
+    0 0 0 1px rgba(255,255,255,.025) inset,
+    0 0 60px rgba(232,200,122,.04) inset;
+  position:relative;overflow:hidden;
+  transform:translateY(14px) scale(.965);
+  opacity:.6;
+  transition:transform .48s var(--e-spring),opacity .32s var(--e-out);
+}
+.overlay.show .settings{transform:none;opacity:1}
+
+/* 面板上的金光標題線 */
+.settings::before{
+  content:'';position:absolute;top:0;left:20%;right:20%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(232,200,122,.55),rgba(127,199,232,.45),transparent);
+  pointer-events:none;
+}
+/* 角落淡淡符紋 */
+.settings::after{
+  content:'';position:absolute;right:-60px;bottom:-60px;
+  width:240px;height:240px;border-radius:50%;
+  border:1px dashed rgba(127,199,232,.08);
+  pointer-events:none;
+  animation:spin 200s linear infinite;
+}
+
+/* ── 左側分頁 ───────────────────────────────────────── */
+.settings-nav{
+  display:flex;flex-direction:column;
+  border-right:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(127,199,232,.025),transparent);
+  padding:20px 0;
+  position:relative;
+}
+.settings-brand{
+  padding:0 22px 18px;
+  border-bottom:1px solid var(--line);
+  margin-bottom:14px;
+}
+.settings-brand .nm{
+  font-family:var(--display);font-size:13px;font-weight:600;
+  letter-spacing:.32em;color:var(--gold);
+  text-shadow:0 0 14px rgba(232,200,122,.18);
+}
+.settings-brand .sub{
+  font-family:var(--display);font-size:9px;
+  letter-spacing:.36em;color:var(--ice-soft);
+  margin-top:6px;opacity:.7;text-transform:uppercase;
+}
+
+.nav-list{display:flex;flex-direction:column;gap:2px;padding:0 12px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;
+  padding:10px 12px;border-radius:6px;
+  font-family:var(--display);font-size:10.5px;
+  letter-spacing:.24em;text-transform:uppercase;font-weight:500;
+  color:var(--ink-mute);cursor:pointer;
+  border:1px solid transparent;
+  position:relative;
+  transition:
+    color .25s var(--e-out),
+    background .25s var(--e-out),
+    border-color .25s var(--e-out),
+    padding-left .3s var(--e-spring);
+}
+.nav-item .ic{font-size:14px;opacity:.6;transition:opacity .25s var(--e-out),color .25s var(--e-out)}
+.nav-item .nm{flex:1}
+.nav-item .num{
+  font-family:var(--mono);font-size:9px;color:var(--ink-faint);
+  letter-spacing:.1em;
+}
+.nav-item:hover{
+  color:var(--ice-bright);
+  background:rgba(127,199,232,.03);
+}
+.nav-item:hover .ic{opacity:1;color:var(--ice-bright)}
+.nav-item.active{
+  color:var(--gold);
+  background:rgba(232,200,122,.06);
+  border-color:rgba(232,200,122,.22);
+  padding-left:16px;
+}
+.nav-item.active .ic{opacity:1;color:var(--gold)}
+.nav-item.active .num{color:var(--gold-soft)}
+.nav-item.active::before{
+  content:'';position:absolute;left:-12px;top:50%;transform:translateY(-50%);
+  width:3px;height:18px;border-radius:2px;
+  background:var(--gold);
+  box-shadow:0 0 8px rgba(232,200,122,.55);
+}
+
+.settings-nav .foot{
+  margin-top:auto;padding:14px 22px 4px;
+  border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:10px;color:var(--ink-faint);
+  letter-spacing:.06em;
+}
+.settings-nav .foot .k{color:var(--ice-soft);opacity:.7}
+
+/* ── 右側內容 ───────────────────────────────────────── */
+.settings-main{
+  display:flex;flex-direction:column;min-height:0;
+  position:relative;
+}
+.settings-head{
+  display:flex;align-items:center;gap:14px;
+  padding:18px 26px;
+  border-bottom:1px solid var(--line);
+  flex-shrink:0;
+}
+.settings-head h2{
+  font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:.28em;
+  color:var(--gold-bright);text-transform:uppercase;
+}
+.settings-head .sub{
+  font-family:var(--serif);font-size:11.5px;color:var(--ink-mute);
+  letter-spacing:.06em;
+}
+.settings-head .x{margin-left:auto}
+
+.settings-body{
+  flex:1;min-height:0;overflow-y:auto;
+  padding:24px 28px 28px;
+  position:relative;
+}
+
+/* 分頁面板，淡入淡出 */
+.pane{display:none;flex-direction:column;gap:22px}
+.pane.active{display:flex;animation:pane-in .42s var(--e-spring)}
+@keyframes pane-in{
+  from{opacity:0;transform:translateY(6px)}
+  to  {opacity:1;transform:none}
+}
+
+/* field：可獨立成卡，也可純樸 */
+.field{display:flex;flex-direction:column;gap:8px}
+.field label{
+  font-family:var(--display);font-size:10.5px;color:var(--ice-bright);
+  letter-spacing:.24em;text-transform:uppercase;font-weight:500;
+  display:flex;align-items:baseline;gap:10px;
+}
+.field label .badge{
+  font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  color:var(--gold-soft);
+  padding:2px 6px;border:1px solid rgba(232,200,122,.22);border-radius:3px;
+  background:rgba(232,200,122,.04);
+  text-transform:none;font-weight:400;
+}
+.field .hint{
+  font-family:var(--serif);font-size:11.5px;color:var(--ink-mute);
+  letter-spacing:.02em;line-height:1.5;
+}
+.field textarea{
+  font-family:var(--serif);font-size:13.5px;line-height:1.7;
+  background:rgba(127,199,232,.03);color:var(--ink);
+  border:1px solid var(--line);border-radius:8px;
+  padding:13px 16px;outline:none;resize:vertical;min-height:100px;
+  transition:border-color .25s var(--e-out),box-shadow .35s var(--e-out),background .25s var(--e-out);
+}
+.field textarea:hover{border-color:rgba(127,199,232,.22)}
+.field textarea:focus{
+  border-color:rgba(232,200,122,.4);
+  box-shadow:0 0 0 3px rgba(232,200,122,.08);
+  background:rgba(127,199,232,.045);
+}
+
+/* 兩欄 grid */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px 24px}
+
+/* ── Slider：可視化軌道填充 ─────────────────────────── */
+.slider-field{
+  padding:13px 14px;
+  background:rgba(127,199,232,.025);
+  border:1px solid var(--line);
+  border-radius:8px;
+  transition:border-color .25s var(--e-out),background .25s var(--e-out);
+}
+.slider-field:hover{border-color:rgba(127,199,232,.22);background:rgba(127,199,232,.04)}
+.slider-field .top{
+  display:flex;align-items:baseline;gap:10px;margin-bottom:4px;
+}
+.slider-field .top label{flex:1;margin:0}
+.slider-field .top .val{
+  font-family:var(--mono);font-size:13px;color:var(--gold);
+  letter-spacing:.04em;font-weight:500;
+  transition:color .25s var(--e-out);
+}
+.slider-field .hint{margin:2px 0 10px}
+.slider-field .track{
+  position:relative;height:18px;display:flex;align-items:center;
+}
+.field input[type=range]{
+  width:100%;-webkit-appearance:none;appearance:none;
+  height:4px;border-radius:2px;
+  background:rgba(127,199,232,.08);
+  outline:none;cursor:pointer;
+  background-image:linear-gradient(90deg,var(--ice-soft),var(--gold));
+  background-repeat:no-repeat;
+  background-size:var(--p,50%) 100%;
+  transition:background-size .15s linear;
+}
+.field input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%,var(--gold-bright),var(--gold-soft));
+  cursor:pointer;border:1px solid rgba(232,200,122,.7);
+  box-shadow:0 0 0 4px rgba(232,200,122,.08),0 0 10px rgba(232,200,122,.35);
+  transition:transform .22s var(--e-spring),box-shadow .3s var(--e-out);
+}
+.field input[type=range]::-webkit-slider-thumb:hover{
+  transform:scale(1.18);
+  box-shadow:0 0 0 6px rgba(232,200,122,.12),0 0 16px rgba(232,200,122,.55);
+}
+.field input[type=range]::-webkit-slider-thumb:active{transform:scale(1.04);transition-duration:.08s}
+.field input[type=range]::-moz-range-thumb{
+  width:16px;height:16px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%,var(--gold-bright),var(--gold-soft));
+  cursor:pointer;border:1px solid rgba(232,200,122,.7);
+  box-shadow:0 0 0 4px rgba(232,200,122,.08),0 0 10px rgba(232,200,122,.35);
+}
+.slider-field .scale{
+  display:flex;justify-content:space-between;
+  font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);
+  letter-spacing:.06em;margin-top:6px;
+}
+
+/* ── Toggle 卡片 ─────────────────────────────────────── */
+.toggle-card{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 16px;
+  background:rgba(127,199,232,.025);
+  border:1px solid var(--line);
+  border-radius:8px;cursor:pointer;user-select:none;
+  transition:border-color .25s var(--e-out),background .25s var(--e-out);
+}
+.toggle-card:hover{border-color:rgba(127,199,232,.22);background:rgba(127,199,232,.045)}
+.toggle-card.on{
+  border-color:rgba(232,200,122,.28);
+  background:rgba(232,200,122,.04);
+}
+.toggle-card .tc-body{flex:1;min-width:0}
+.toggle-card .tc-title{
+  font-family:var(--display);font-size:11px;color:var(--ice-bright);
+  letter-spacing:.22em;text-transform:uppercase;font-weight:500;
+  transition:color .25s var(--e-out);
+}
+.toggle-card.on .tc-title{color:var(--gold-bright)}
+.toggle-card .tc-hint{
+  font-family:var(--serif);font-size:11.5px;color:var(--ink-mute);
+  margin-top:4px;letter-spacing:.02em;line-height:1.5;
+}
+.toggle-card .sw{
+  width:40px;height:22px;border-radius:14px;position:relative;flex-shrink:0;
+  background:rgba(127,199,232,.07);border:1px solid var(--line);
+  transition:background .28s var(--e-out),border-color .28s var(--e-out);
+}
+.toggle-card .sw::after{
+  content:'';position:absolute;width:14px;height:14px;border-radius:50%;
+  background:var(--ink-mute);top:3px;left:3px;
+  transition:left .36s var(--e-spring),background .28s var(--e-out),box-shadow .3s var(--e-out);
+}
+.toggle-card.on .sw{
+  background:rgba(232,200,122,.18);
+  border-color:rgba(232,200,122,.5);
+}
+.toggle-card.on .sw::after{
+  left:21px;
+  background:var(--gold-bright);
+  box-shadow:0 0 8px rgba(232,200,122,.55);
+}
+
+/* ── 段落小標 ───────────────────────────────────────── */
+.pane-section-label{
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--display);font-size:9.5px;color:var(--ice-soft);
+  letter-spacing:.36em;text-transform:uppercase;font-weight:500;
+  opacity:.65;margin-top:4px;
+}
+.pane-section-label::after{
+  content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent);
+}
+
+/* ── 底部 ──────────────────────────────────────────── */
+.settings-foot{
+  display:flex;gap:12px;justify-content:space-between;align-items:center;
+  padding:14px 26px;
+  border-top:1px solid var(--line);
+  flex-shrink:0;
+  background:linear-gradient(0deg,rgba(11,18,38,.6),transparent);
+}
+.settings-foot .hint{
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-mute);
+  letter-spacing:.06em;display:flex;align-items:center;gap:8px;
+}
+.settings-foot .hint kbd{
+  font-family:var(--mono);font-size:9.5px;
+  padding:2px 6px;border:1px solid var(--line);border-radius:3px;
+  background:rgba(127,199,232,.04);color:var(--ice-soft);
+}
+.settings-foot .actions{display:flex;gap:10px}
+
+@media (max-width:780px){
+  .settings{grid-template-columns:160px 1fr;height:auto;max-height:90vh}
+  .settings-brand{padding:0 14px 14px}
+  .nav-list{padding:0 8px}
+  .nav-item{padding:9px 10px;font-size:10px;letter-spacing:.18em}
+}
+
+/* ── 左欄拖曳 ───────────────────────────────────────── */
+#col-left{position:relative}
+#col-drag{
+  position:absolute;top:0;right:-3px;width:10px;height:100%;cursor:col-resize;z-index:20;
+}
+#col-drag::after{
+  content:'';position:absolute;left:3px;top:50%;transform:translateY(-50%);
+  width:3px;height:48px;border-radius:3px;background:var(--gold-soft);
+  opacity:0;transition:opacity .25s var(--e-out);
+}
+#col-drag:hover::after,#col-drag.dragging::after{opacity:.9}
+
+/* ── 捲軸 ────────────────────────────────────────── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:rgba(127,199,232,.14);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(232,200,122,.25)}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ── 圖示 ─────────────────────────────────────────── */
+.ic{display:inline-flex;align-items:center;justify-content:center;width:1em;height:1em;vertical-align:-0.15em}
+.ic svg{width:1em;height:1em;display:block}
+.icon-btn .ic{font-size:16px}
+.meta-chip .ic{font-size:14px}
+.cam .ph .ic{font-size:46px}
+.proactive-banner .ic{font-size:15px;color:var(--gold-bright)}
+.bubble.tool .ic{font-size:14px}
+.tool-card .tn .ic{font-size:13px}
+
+/* ── 連線狀態文字過渡 ─────────────────────────────────── */
+#st-conn{transition:color .4s var(--e-out)}
+
+/* ── 媒體查詢 ─────────────────────────────────────────── */
+@media (max-width:1180px){
+  .main{grid-template-columns:300px 1fr 260px;padding:12px}
+  .col-head{font-size:9.5px;letter-spacing:.24em}
+}
+@media (prefers-reduced-motion:reduce){
+  .sigil-outer,.sigil-mid,.sigil-core,.sigil-2 svg{animation:none}
+  *{animation-duration:.01s !important;transition-duration:.01s !important}
+}
+</style>
+</head>
+<body>
+<span class="sr-only">Raphael 環境感知系統介面</span>
+
+<!-- 大魔法陣（中央，淡） -->
+<div class="sigil" aria-hidden="true">
+<svg viewBox="0 0 800 800" fill="none" stroke="currentColor" stroke-width="0.5" style="color:#7fc7e8">
+  <g class="sigil-outer" style="transform-origin:400px 400px">
+    <circle cx="400" cy="400" r="380"/>
+    <circle cx="400" cy="400" r="372" stroke-dasharray="2 6"/>
+    <!-- 長刻度 12 點 -->
+    <g>
+      <line x1="400" y1="22" x2="400" y2="48"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(30 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(60 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(90 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(120 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(150 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(180 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(210 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(240 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(270 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(300 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="48" transform="rotate(330 400 400)"/>
+    </g>
+    <!-- 24 短刻度 -->
+    <g opacity=".6">
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(15 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(45 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(75 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(105 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(135 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(165 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(195 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(225 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(255 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(285 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(315 400 400)"/>
+      <line x1="400" y1="22" x2="400" y2="34" transform="rotate(345 400 400)"/>
+    </g>
+    <!-- 八邊形 -->
+    <polygon points="400,30 562,72 678,188 720,350 678,512 562,628 400,670 238,628 122,512 80,350 122,188 238,72" style="stroke:#e8c87a" opacity=".55"/>
+  </g>
+  <g class="sigil-mid" style="transform-origin:400px 400px">
+    <circle cx="400" cy="400" r="280"/>
+    <circle cx="400" cy="400" r="258" stroke-dasharray="4 8"/>
+    <polygon points="400,122 617,261 617,539 400,678 183,539 183,261" opacity=".55" style="stroke:#e8c87a"/>
+    <polygon points="400,144 594,289 527,511 273,511 206,289" opacity=".4"/>
+    <line x1="400" y1="122" x2="400" y2="678" opacity=".25"/>
+    <line x1="183" y1="261" x2="617" y2="539" opacity=".25"/>
+    <line x1="617" y1="261" x2="183" y2="539" opacity=".25"/>
+  </g>
+  <g class="sigil-core" style="transform-origin:400px 400px">
+    <circle cx="400" cy="400" r="160"/>
+    <circle cx="400" cy="400" r="138" stroke-dasharray="2 6"/>
+    <circle cx="400" cy="400" r="78" style="stroke:#e8c87a"/>
+    <polygon points="400,242 443,357 560,357 467,427 502,544 400,474 298,544 333,427 240,357 357,357" opacity=".5" style="stroke:#e8c87a"/>
+    <circle cx="400" cy="400" r="14" stroke-width="0.8" style="stroke:#e8c87a"/>
+    <circle cx="400" cy="400" r="3" fill="#e8c87a" stroke="none"/>
+  </g>
+</svg>
+</div>
+
+<!-- 角落小魔法陣 -->
+<div class="sigil-2" aria-hidden="true">
+<svg viewBox="0 0 400 400" fill="none" stroke="#7fc7e8" stroke-width="0.6" style="transform-origin:200px 200px">
+  <circle cx="200" cy="200" r="190" stroke-dasharray="6 12"/>
+  <circle cx="200" cy="200" r="140"/>
+  <polygon points="200,60 60,320 340,320" stroke="#e8c87a" opacity=".7"/>
+  <circle cx="200" cy="200" r="90"/>
+  <circle cx="200" cy="200" r="40" stroke-dasharray="2 4"/>
+</svg>
+</div>
+
+<!-- 頂列 -->
+<div class="topbar">
+  <span class="logo">OmniCore Raphael<span class="v">
+  <span class="tagline">Ambient Perception · Great Sage Engine</span>
+  <div class="right">
+  </div>
+</div>
+
+<!-- 控制列 -->
+<div class="ctrlbar">
+  <span class="split-btn" id="split-connect">
+    <button class="btn btn-primary sb-main" id="btn-connect">連線</button>
+    <button class="btn btn-primary sb-arrow" id="btn-connect-menu" aria-label="連線設定"><span class="ic" data-i="chevron-down"></span></button>
+    <!-- LM Studio 式迷你載入面板 -->
+    <div class="quick-cfg" id="quick-cfg">
+      <div class="qc-head">
+        <span class="qc-title">連線設定 · Load Config</span>
+        <button class="qc-link" id="qc-open-settings">完整設定 →</button>
+      </div>
+
+      <div class="qc-group">語音輸出</div>
+      <div class="qc-row">
+        <label>音色</label>
+        <span class="sel-wrap"><select id="q-voice">
+          <option>Puck</option><option>Charon</option><option>Kore</option><option>Fenrir</option><option>Aoede</option>
+        </select></span>
+      </div>
+      <div class="qc-row">
+        <label>回應</label>
+        <span class="sel-wrap"><select id="q-respond">
+          <option>語音</option><option>文字</option>
+        </select></span>
+      </div>
+
+      <div class="qc-group">推論</div>
+      <div class="qc-row">
+        <label>思考</label>
+        <span class="sel-wrap"><select id="q-thinking">
+          <option>OFF</option><option>LOW</option><option>MED</option><option>HIGH</option>
+        </select></span>
+      </div>
+      <div class="qc-slider">
+        <div class="qcs-head"><span>上下文長度</span><b id="q-ctx-v">8192</b></div>
+        <input type="range" id="q-ctx" min="2048" max="32768" step="2048" value="8192">
+        <span class="qcs-hint">越長記得越多，記憶體用量越高</span>
+      </div>
+      <div class="qc-slider">
+        <div class="qcs-head"><span>溫度 Temperature</span><b id="q-temp-v">0.70</b></div>
+        <input type="range" id="q-temp" min="0" max="1.5" step="0.05" value="0.7">
+        <span class="qcs-hint">越高越有創造性，越低越穩定</span>
+      </div>
+
+      <div class="qc-group">感知</div>
+      <div class="qc-slider">
+        <div class="qcs-head"><span>語義漂移閾值</span><b id="q-drift-v">0.15</b></div>
+        <input type="range" id="q-drift" min="0.03" max="0.5" step="0.01" value="0.15">
+        <span class="qcs-hint">越低越敏感，越容易主動開口</span>
+      </div>
+      <div class="qc-slider">
+        <div class="qcs-head"><span>送幀頻率</span><b id="q-fps-v">4 fps</b></div>
+        <input type="range" id="q-fps" min="1" max="10" step="1" value="4">
+        <span class="qcs-hint">VisionGate 語義分析頻率</span>
+      </div>
+
+      <div class="qc-foot">
+        <label class="qc-check" id="qc-save-default">
+          <span class="cb"></span><span>儲存為預設值</span>
+        </label>
+      </div>
+    </div>
+  </span>
+
+  <button class="btn btn-danger" id="btn-disconnect">斷線</button>
+  <button class="btn btn-warn" id="btn-interrupt">■ 打斷</button>
+
+  <!-- 來源開關下拉（連線後出現，可即時斷來源）-->
+  <span class="src-menu" id="src-menu">
+    <button class="btn src-trigger" id="src-trigger">
+      <span class="ic" data-i="adjustments-horizontal"></span>來源<span class="ic" data-i="chevron-down" style="font-size:12px"></span>
+    </button>
+    <div class="src-dropdown" id="src-dropdown">
+      <div class="src-item" data-src="vision">
+        <span class="ic" data-i="video"></span><span class="si-label">影像</span><span class="sw" id="src-vision"></span>
+      </div>
+      <div class="src-item" data-src="audio">
+        <span class="ic" data-i="microphone"></span><span class="si-label">音訊</span><span class="sw on" id="src-audio"></span>
+      </div>
+      <div class="src-item" data-src="tool">
+        <span class="ic" data-i="tool"></span><span class="si-label">工具</span><span class="sw on" id="src-tool"></span>
+      </div>
+      <div class="src-item" data-src="memory">
+        <span class="ic" data-i="bulb"></span><span class="si-label">記憶</span><span class="sw" id="src-memory"></span>
+      </div>
+    </div>
+  </span>
+
+  <span class="cfg-summary" id="cfg-summary" aria-hidden="true"></span>
+  <span class="spacer"></span>
+  <span class="tk" id="tk-count">0 tk</span>
+  <button class="icon-btn" id="btn-settings" aria-label="設定"><span class="ic" data-i="adjustments"></span></button>
+</div>
+
+<!-- 主格線 -->
+<div class="main" id="main">
+
+  <!-- 視覺感知 -->
+  <div class="col" id="col-left">
+    <div id="col-drag"></div>
+    <div class="col-head">
+      <span class="hdot"></span>
+      <span>視覺感知 · Vision</span>
+    </div>
+    <div class="cam-wrap">
+      <div class="cam" id="cam">
+        <div class="ph"><span class="ic" data-i="video-off"></span></div>
+        <span class="ov gate" id="gate-state">WATCHING</span>
+        <div class="ov fps"><span id="fps-cap">擷取 0</span><span id="fps-sem">語義 0</span></div>
+      </div>
+    </div>
+    <!-- 鏡頭下方：左(漂移+數值圖表) | 右(觸發事件) -->
+    <div class="vision-grid">
+      <div class="vg-left">
+        <div class="meta-chip drift-chip"><span class="ic" data-i="activity" style="color:var(--gold)"></span><span id="drift-text">漂移 0.00</span></div>
+        <div class="stats-panel">
+          <div class="evt-head" style="border-top:none;padding-left:0">即時數值 · Metrics</div>
+          <div class="stat-bars" id="stat-bars">
+            <div class="sbar"><span class="sb-k">擷取 FPS</span><div class="sb-track"><div class="sb-fill" id="sb-cap"></div></div><b class="sb-v" id="sb-cap-v">0</b></div>
+            <div class="sbar"><span class="sb-k">語義 FPS</span><div class="sb-track"><div class="sb-fill" id="sb-sem"></div></div><b class="sb-v" id="sb-sem-v">0</b></div>
+            <div class="sbar"><span class="sb-k">語義漂移</span><div class="sb-track"><div class="sb-fill alt" id="sb-drift"></div></div><b class="sb-v" id="sb-drift-v">0.00</b></div>
+            <div class="sbar"><span class="sb-k">物件數</span><div class="sb-track"><div class="sb-fill alt2" id="sb-obj"></div></div><b class="sb-v" id="sb-obj-v">0</b></div>
+          </div>
+          <div class="stat-foot"><span>Gate</span><b id="rs-gate">WATCHING</b></div>
+        </div>
+      </div>
+      <div class="vg-right">
+        <div class="evt-head" style="border-top:none;padding-left:0">觸發事件 · Events</div>
+        <div class="evt-log" id="evt-log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 對話 -->
+  <div class="col center" id="col-center">
+    <div class="col-head">
+      <span class="hdot"></span>
+      <span>對話 · Dialogue</span>
+    </div>
+    <div class="proactive-banner" id="proactive" style="display:none">
+      <span class="ic" data-i="bulb"></span><span id="proactive-text"></span>
+    </div>
+    <div class="conv" id="conv"></div>
+    <div class="vad-row">
+      <span class="mic-state" id="mic-state"><span class="ic" data-i="microphone"></span><span id="vad-text">待機</span></span>
+      <div class="vad-meter"><div class="vad-fill" id="vad-fill"></div></div>
+    </div>
+    <div class="input-row">
+      <input id="text-input" placeholder="輸入訊息…  Enter 發送 · Shift+Enter 換行">
+      <button class="btn btn-primary" id="btn-send">發送</button>
+    </div>
+  </div>
+
+  <!-- 工具 / 記憶 -->
+  <div class="col" id="col-right">
+    <div id="col-drag-r"></div>
+    <div class="right-split">
+      <div class="col-head">
+        <span style="display:flex;align-items:center;gap:10px">
+          <span class="hdot" style="background:var(--pink);box-shadow:0 0 6px rgba(232,138,172,.55)"></span>
+          <span>工具 · 記憶</span>
+        </span>
+        <button class="collapse-btn" id="btn-collapse" aria-label="收合"><span class="ic" data-i="layout-sidebar-right-collapse"></span></button>
+      </div>
+      <div class="vert-label">工具 · 記憶</div>
+      <div class="tools-sec" id="tools-sec">
+        <div class="evt-head" style="border-top:none">工具調用 · Tool Calls</div>
+        <div class="sec-body" id="tools-body"></div>
+      </div>
+      <div id="row-drag-r"></div>
+      <div class="mem-sec" id="mem-sec">
+        <div class="evt-head">長期記憶 · Memory</div>
+        <div class="sec-body" id="mem-body"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 狀態列 -->
+<div class="statusbar">
+  <div class="s">回合 <b id="st-turns">0</b></div>
+  <div class="s">Tokens <b id="st-tokens">0</b></div>
+  <div class="s">感知事件 <b id="st-events">0</b></div>
+  <div class="s">工具呼叫 <b id="st-tools">0</b></div>
+  <span class="spacer"></span>
+  <div class="s" id="st-conn" style="color:var(--pink)">● 未連線</div>
+</div>
+
+<!-- 設定面板 · 分頁式 -->
+<div class="overlay" id="overlay">
+  <div class="settings" role="dialog" aria-label="展前設定">
+
+    <!-- 左：分頁導覽 -->
+    <aside class="settings-nav">
+      <div class="settings-brand">
+        <div class="nm">RAPHAEL</div>
+        <div class="sub">Configuration</div>
+      </div>
+      <div class="nav-list" id="nav-list">
+        <div class="nav-item active" data-pane="connect">
+          <span class="ic" data-i="plug"></span>
+          <span class="nm">連線</span>
+          <span class="num">I</span>
+        </div>
+        <div class="nav-item" data-pane="persona">
+          <span class="ic" data-i="bulb"></span>
+          <span class="nm">角色</span>
+          <span class="num">II</span>
+        </div>
+        <div class="nav-item" data-pane="perception">
+          <span class="ic" data-i="activity"></span>
+          <span class="nm">感知</span>
+          <span class="num">III</span>
+        </div>
+        <div class="nav-item" data-pane="dialogue">
+          <span class="ic" data-i="microphone"></span>
+          <span class="nm">對話</span>
+          <span class="num">IV</span>
+        </div>
+        <div class="nav-item" data-pane="system">
+          <span class="ic" data-i="tool"></span>
+          <span class="nm">系統</span>
+          <span class="num">V</span>
+        </div>
+      </div>
+      <div class="foot">
+        <span class="k">v2.0</span> · ambient
+      </div>
+    </aside>
+
+    <!-- 右：內容 -->
+    <main class="settings-main">
+      <div class="settings-head">
+        <h2 id="pane-title">角色 · Persona</h2>
+        <span class="sub" id="pane-sub">人格與行為原則 · 連線前設定</span>
+        <button class="icon-btn x" id="btn-close-settings" aria-label="關閉"><span class="ic" data-i="x"></span></button>
+      </div>
+
+      <div class="settings-body">
+        <!-- 連線（展前設定，連線後鎖定）-->
+        <section class="pane active" data-pane="connect">
+          <span class="hint" style="margin-bottom:4px">以下參數在連線時套用，連線後鎖定。展示中無需更動。</span>
+          <div class="grid2">
+            <div class="field">
+              <label>語音音色</label>
+              <span class="hint">Raphael 的說話聲線。</span>
+              <span class="sel-wrap"><select id="voice">
+                <option>Puck</option><option>Charon</option><option>Kore</option><option>Fenrir</option><option>Aoede</option>
+              </select></span>
+            </div>
+            <div class="field">
+              <label>思考強度 <span class="hint" style="display:inline">Thinking</span></label>
+              <span class="hint">越高越謹慎，延遲略增。</span>
+              <span class="sel-wrap"><select id="thinking">
+                <option>OFF</option><option>LOW</option><option>MED</option><option>HIGH</option>
+              </select></span>
+            </div>
+          </div>
+          <div class="field">
+            <label>音訊輸入來源</label>
+            <span class="hint">伺服器 VAD 由後端偵測語音起訖；瀏覽器麥克風則由前端直接擷取。</span>
+            <span class="sel-wrap"><select id="mic">
+              <option>伺服器 VAD（建議）</option><option>瀏覽器麥克風</option>
+            </select></span>
+          </div>
+
+          <div class="pane-section-label">連線時行為</div>
+          <div class="field">
+            <label>回應模式</label>
+            <span class="hint">Raphael 回覆使用語音或純文字。</span>
+            <span class="sel-wrap"><select id="set-respond">
+              <option>語音</option><option>文字</option>
+            </select></span>
+          </div>
+          <div class="field">
+            <span class="hint">影像 / 音訊 / 工具 / 記憶 等來源開關，連線後可於上方控制列「來源」選單即時切斷或恢復，無需重新連線。</span>
+          </div>
+        </section>
+
+        <!-- 角色 -->
+        <section class="pane" data-pane="persona">
+          <div class="field">
+            <label>System Prompt <span class="badge">展示中鎖定</span></label>
+            <span class="hint">Raphael 的人格與行為原則。對話中不可變更，需在連線前完成。</span>
+            <textarea id="set-persona" rows="6">你是 Raphael,一個環境感知 AI。你持續觀察使用者的環境，但只在真正值得提醒時才開口。每次場景變化先呼叫 log_observation 記錄，不重要就保持安靜。語氣自然、簡潔、像一位細心的夥伴。</textarea>
+          </div>
+
+          <div class="pane-section-label">語音與思考</div>
+          <div class="grid2">
+            <div class="toggle-card on" id="tog-thinking-trace">
+              <div class="tc-body">
+                <div class="tc-title">顯示思考軌跡</div>
+                <div class="tc-hint">在對話流中以淡灰色顯示 Raphael 的內部推理片段。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+            <div class="toggle-card" id="tog-bilingual">
+              <div class="tc-body">
+                <div class="tc-title">雙語回應</div>
+                <div class="tc-hint">偵測使用者語言時同步給出中／日／英對照。</div>
+              </div>
+              <div class="sw"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 感知 -->
+        <section class="pane" data-pane="perception">
+          <div class="grid2">
+            <div class="slider-field">
+              <div class="top">
+                <label>語義漂移閾值</label>
+                <span class="val" id="set-drift-v">0.15</span>
+              </div>
+              <span class="hint">越低越敏感。畫面語義改變超過此值即觸發。</span>
+              <div class="track"><input type="range" id="set-drift" min="0.03" max="0.5" step="0.01" value="0.15"></div>
+              <div class="scale"><span>0.03</span><span>0.50</span></div>
+            </div>
+            <div class="slider-field">
+              <div class="top">
+                <label>送幀頻率</label>
+                <span class="val" id="set-fps-v">4</span>
+              </div>
+              <span class="hint">VisionGate 每秒分析次數。fps 越高越即時，但耗算。</span>
+              <div class="track"><input type="range" id="set-fps" min="1" max="10" step="1" value="4"></div>
+              <div class="scale"><span>1 fps</span><span>10 fps</span></div>
+            </div>
+            <div class="slider-field">
+              <div class="top">
+                <label>VAD 閾值</label>
+                <span class="val" id="set-vad-v">0.027</span>
+              </div>
+              <span class="hint">人聲偵測靈敏度。值越低越容易觸發。</span>
+              <div class="track"><input type="range" id="set-vad" min="0.01" max="0.1" step="0.001" value="0.027"></div>
+              <div class="scale"><span>0.01</span><span>0.10</span></div>
+            </div>
+            <div class="slider-field">
+              <div class="top">
+                <label>記憶重要度過濾</label>
+                <span class="val" id="set-imp-v">1</span>
+              </div>
+              <span class="hint">低於此值的觀察不顯示於右欄記憶區。</span>
+              <div class="track"><input type="range" id="set-imp" min="1" max="5" step="1" value="1"></div>
+              <div class="scale"><span>1 · 全部</span><span>5 · 重要</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 對話 -->
+        <section class="pane" data-pane="dialogue">
+          <div class="toggle-card on" id="tog-proactive">
+            <div class="tc-body">
+              <div class="tc-title">主動開口</div>
+              <div class="tc-hint">允許 Raphael 在偵測到重要場景變化時主動發起對話。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+          <div class="toggle-card on" id="tog-interrupt">
+            <div class="tc-body">
+              <div class="tc-title">可被打斷</div>
+              <div class="tc-hint">使用者語音觸發時立即停止當前語音輸出。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+          <div class="toggle-card" id="tog-subtitle">
+            <div class="tc-body">
+              <div class="tc-title">隱藏字幕</div>
+              <div class="tc-hint">只播語音不顯示文字（適合純聲音體驗）。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+        </section>
+
+        <!-- 系統 -->
+        <section class="pane" data-pane="system">
+          <div class="toggle-card on" id="tog-resume">
+            <div class="tc-body">
+              <div class="tc-title">Session Resumption</div>
+              <div class="tc-hint">斷線後自動以最近 session 無縫接續，保留上下文。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+          <div class="toggle-card on" id="tog-search">
+            <div class="tc-body">
+              <div class="tc-title">Google Search 工具</div>
+              <div class="tc-hint">允許 Raphael 在回答中即時查詢外部資訊。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+          <div class="toggle-card" id="tog-debug">
+            <div class="tc-body">
+              <div class="tc-title">除錯模式</div>
+              <div class="tc-hint">顯示原始 channel payload 與計時資訊（開發者用）。</div>
+            </div>
+            <div class="sw"></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="settings-foot">
+        <span class="hint"><kbd>⌘</kbd><kbd>K</kbd> 開啟 · <kbd>Esc</kbd> 關閉</span>
+        <span class="actions">
+          <button class="btn" id="btn-cancel-settings">取消</button>
+          <button class="btn btn-primary" id="btn-save-settings">儲存設定</button>
+        </span>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<script>/* ════════════════════════════════════════════════════════════════════════
+   app.js — Raphael UI 邏輯
+   ════════════════════════════════════════════════════════════════════════
+   設計核心：所有畫面更新都經由 applyMessage(channel, payload)。
+   channel 字串與後端 bridge.py 的 Channel enum 一一對應。
+
+   接 WebSocket 時，只要：
+       ws.onmessage = e => { const m = JSON.parse(e.data); applyMessage(m.channel, m.payload); }
+   即可驅動整個畫面。目前用 mock 資料展示版面。
+   ════════════════════════════════════════════════════════════════════════ */
+
+const $ = id => document.getElementById(id);
+
+// ── 內聯 SVG 圖示（不依賴外部 webfont，file:// 直接可用）──────
+const ICONS = {
+  'adjustments': '<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="13" cy="18" r="2"/>',
+  'x': '<path d="M5 5l14 14M19 5L5 19"/>',
+  'bulb': '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3 11c.5.4 1 1 1 2h4c0-1 .5-1.6 1-2a6 6 0 0 0-3-11z"/>',
+  'microphone': '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/>',
+  'activity': '<path d="M3 12h4l3 8 4-16 3 8h4"/>',
+  'video-off': '<path d="M3 3l18 18M10 6h6a2 2 0 0 1 2 2v3l3-2v8M14 14v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2"/>',
+  'layout-sidebar-right-collapse': '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M10 10l-2 2 2 2"/>',
+  'layout-sidebar-right-expand': '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M8 10l2 2-2 2"/>',
+  'tool': '<path d="M7 10l-4 4 3 3 4-4M14 7l3-3 3 3-3 3M7 10l7 7M14 7L7 14"/>',
+  'check': '<path d="M5 12l5 5L20 7"/>',
+  'plug': '<path d="M9 2v6M15 2v6M7 8h10v3a5 5 0 0 1-10 0zM12 16v6"/>',
+  'chevron-down': '<path d="M6 9l6 6 6-6"/>',
+  'video': '<path d="M3 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM15 10l6-3v10l-6-3"/>',
+  'adjustments-horizontal': '<path d="M4 6h8M16 6h4M4 12h4M12 12h8M4 18h12M18 18h2"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/>',
+};
+function svgIcon(name) {
+  const inner = ICONS[name] || '';
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+}
+function renderIcons(root = document) {
+  root.querySelectorAll('.ic[data-i]').forEach(el => {
+    if (el.dataset.rendered) return;
+    el.innerHTML = svgIcon(el.dataset.i);
+    el.dataset.rendered = '1';
+  });
+}
+function makeIcon(name) {
+  const s = document.createElement('span');
+  s.className = 'ic'; s.dataset.i = name; s.innerHTML = svgIcon(name); s.dataset.rendered = '1';
+  return s;
+}
+renderIcons();
+
+// ── 狀態統計 ──────────────────────────────────────────────
+const stat = { turns: 0, tokens: 0, events: 0, tools: 0 };
+function bumpStat(k, n = 1) { stat[k] += n; $('st-' + k).textContent = stat[k]; }
+function setTokens(n) { stat.tokens = n; $('st-tokens').textContent = n; $('tk-count').textContent = n + ' tk'; }
+
+// ── 對話：串流轉錄需要「續寫同一顆泡泡」，用 ref 暫存 ──────
+let curRaeBubble = null;   // Raphael 回應（output transcript）
+let curUserBubble = null;  // 使用者 ASR（input transcript）
+
+function convEl() { return $('conv'); }
+
+function addLabel(kind, text) {
+  const l = document.createElement('div');
+  l.className = 'msg-label ' + kind;
+  l.textContent = text;
+  convEl().appendChild(l);
+  return l;
+}
+function addBubble(kind, text) {
+  const b = document.createElement('div');
+  b.className = 'bubble ' + kind;
+  b.textContent = text;
+  convEl().appendChild(b);
+  scrollConv();
+  return b;
+}
+function scrollConv() { const c = convEl(); c.scrollTop = c.scrollHeight; }
+
+// ════════════════════════════════════════════════════════════
+//  applyMessage —— 唯一的畫面更新入口（對齊 bridge Channel）
+// ════════════════════════════════════════════════════════════
+function applyMessage(channel, payload) {
+  switch (channel) {
+
+    // ── 感知資料顯示 ──────────────────────────────────────
+    case 'sensor_view': {
+      // payload: {jpeg(b64)|null, vad_speaking, gate_state, drift, fps_capture, fps_semantic}
+      if (payload.jpeg) {
+        const cam = $('cam');
+        let img = cam.querySelector('img');
+        if (!img) { img = document.createElement('img'); cam.prepend(img); cam.querySelector('.ph')?.remove(); }
+        img.src = 'data:image/jpeg;base64,' + payload.jpeg;
+      }
+      const gate = payload.gate_state ?? 'WATCHING';
+      const cap = Math.round(payload.fps_capture ?? 0);
+      const sem = Math.round(payload.fps_semantic ?? 0);
+      const driftN = payload.drift ?? 0;
+      const drift = driftN.toFixed(2);
+      $('gate-state').textContent = gate;
+      $('fps-cap').textContent = '擷取 ' + cap;
+      $('fps-sem').textContent = '語義 ' + sem;
+      $('drift-text').textContent = '漂移 ' + drift;
+      $('vad-text').textContent = payload.vad_speaking ? '偵測到人聲' : '待機';
+      // 數值橫條圖表
+      const setBar=(fill,val,txt,pct)=>{ const f=$(fill); if(f) f.style.width=Math.max(4,Math.min(100,pct))+'%'; const t=$(txt); if(t) t.textContent=val; };
+      setBar('sb-cap', cap, 'sb-cap-v', (cap/30)*100);
+      setBar('sb-sem', sem, 'sb-sem-v', (sem/10)*100);
+      setBar('sb-drift', drift, 'sb-drift-v', driftN*200);
+      const objN = payload.objects ?? Math.round((payload.fps_semantic??0)); // 後端可帶 objects
+      setBar('sb-obj', objN, 'sb-obj-v', objN*10);
+      if ($('rs-gate')) $('rs-gate').textContent = gate;
+      break;
+    }
+
+    // ── VAD 音量（即時，給底部 meter）─────────────────────
+    case 'vad_event': {
+      // payload: {speaking, probability}
+      const pct = Math.round((payload.probability ?? 0) * 100);
+      const fill = $('vad-fill');
+      fill.style.width = Math.max(4, pct) + '%';
+      fill.classList.toggle('speaking', !!payload.speaking);
+      $('mic-state')?.classList.toggle('speaking', !!payload.speaking);
+      $('vad-text').textContent = payload.speaking ? '偵測到人聲' : '待機';
+      break;
+    }
+
+    // ── 感知事件日誌（左欄下方捲動區）─────────────────────
+    case 'vision_event': {
+      // payload: {jpeg, reason, detail}  → 這裡只用 reason/detail 做日誌
+      addEventLog(payload.reason, payload.detail);
+      bumpStat('events');
+      break;
+    }
+
+    // ── 使用者語音 ASR（你要顯示的轉錄）───────────────────
+    case 'transcript_in': {
+      if (!curUserBubble) { addLabel('user', '你'); curUserBubble = addBubble('user', ''); }
+      curUserBubble.textContent += payload.text;
+      if (payload.done) curUserBubble = null;
+      scrollConv();
+      break;
+    }
+
+    // ── Raphael 回應字幕 ──────────────────────────────────
+    case 'transcript_out': {
+      if (payload.done) { curRaeBubble = null; bumpStat('turns'); break; }
+      if (!curRaeBubble) { addLabel('rae', '◉ RAPHAEL'); curRaeBubble = addBubble('rae', ''); }
+      curRaeBubble.textContent += payload.text;
+      scrollConv();
+      break;
+    }
+
+    // ── 工具呼叫（中欄內嵌 + 右欄獨立區，雙重呈現）────────
+    case 'tool_call': {
+      // payload: {name, args}
+      addToolBubble(payload.name, payload.args, null);   // 對話流內嵌
+      addToolCard(payload.name, payload.args, null);     // 右欄獨立
+      bumpStat('tools');
+      break;
+    }
+    case 'tool_result': {
+      // payload: {name, result}
+      addToolBubble(payload.name, null, payload.result); // 對話流內嵌
+      updateLastToolCard(payload.result);                // 右欄補上結果
+      break;
+    }
+
+    // ── 記憶寫入（log_observation → 右欄記憶區）───────────
+    case 'memory_write': {
+      // payload: {memory, category, importance}
+      addMemCard(payload);
+      break;
+    }
+
+    // ── 主動開口提示 ──────────────────────────────────────
+    case 'proactive': {
+      const banner = $('proactive');
+      banner.style.display = 'flex';
+      $('proactive-text').textContent = '主動開口：' + reasonText(payload);
+      break;
+    }
+
+    // ── 被打斷 ────────────────────────────────────────────
+    case 'interrupted': {
+      curRaeBubble = null;
+      // 接 WebSocket 時這裡要清空瀏覽器音訊播放佇列
+      break;
+    }
+
+    // ── 連線狀態 ──────────────────────────────────────────
+    case 'status': {
+      setConn(payload);
+      break;
+    }
+
+    // ── 系統訊息 / 錯誤 ───────────────────────────────────
+    case 'error': {
+      addLabel('sys', 'SYSTEM');
+      addBubble('sys', '⚠ ' + payload);
+      break;
+    }
+  }
+}
+
+// ── 小工具函式 ────────────────────────────────────────────
+function reasonText(r) {
+  if (r && typeof r === 'object') r = r.type || r.reason || r.detail || JSON.stringify(r);
+  if (typeof r !== 'string') return String(r ?? '');
+  const map = { 'vision:semantic': '偵測到場景語義變化', 'vision:object': '偵測到物件變化',
+                'vision:object_motion': '偵測到物體進入或移動',
+                'vision:motion': '偵測到物體進入或移動',
+                'vision:fast_motion': '偵測到快速移動', 'vision:fast_burst': '偵測到快速移動' };
+  return map[r] ?? r;
+}
+
+const EVT_MAP = {
+  object_appeared: { cls: 'appeared', label: 'object_appeared' },
+  object_left:     { cls: 'leave',    label: 'object_left' },
+  person_enter:    { cls: 'enter',    label: 'person_enter' },
+  person_leave:    { cls: 'leave',    label: 'person_leave' },
+  person_moved:    { cls: 'moved',    label: 'person_moved' },
+  semantic:        { cls: 'appeared', label: 'semantic_shift' },
+};
+function addEventLog(reason, detail) {
+  const cfg = EVT_MAP[reason] ?? { cls: '', label: reason };
+  const e = document.createElement('div');
+  e.className = 'evt fresh ' + cfg.cls;
+  e.innerHTML = `<span class="k">${cfg.label}</span><span class="d">${detail ?? ''}</span>`;
+  const log = $('evt-log');
+  log.prepend(e);
+  setTimeout(() => e.classList.remove('fresh'), 400);
+  while (log.children.length > 60) log.lastChild.remove();
+}
+
+function addToolBubble(name, args, result) {
+  if (args !== null) {
+    const b = addBubble('tool', '');
+    b.innerHTML = `<span class="ic" style="font-size:14px">${svgIcon('tool')}</span><span>${name}(<code>${JSON.stringify(args)}</code>)</span>`;
+  } else {
+    const b = addBubble('tool result', '');
+    const rs = typeof result === 'object' ? JSON.stringify(result) : String(result);
+    b.innerHTML = `<span class="ic" style="font-size:14px">${svgIcon('check')}</span><span>${name} → <code>${rs}</code></span>`;
+  }
+}
+
+let lastToolCard = null;
+function addToolCard(name, args, result) {
+  const c = document.createElement('div');
+  c.className = 'tool-card pending';
+  c.innerHTML = `<div class="tn"><span class="ic" style="font-size:13px">${svgIcon('tool')}</span>${name}</div>
+                 <div class="ta">${JSON.stringify(args ?? {})}</div>`;
+  $('tools-body').prepend(c);
+  lastToolCard = c;
+  while ($('tools-body').children.length > 30) $('tools-body').lastChild.remove();
+}
+function updateLastToolCard(result) {
+  if (!lastToolCard) return;
+  lastToolCard.classList.remove('pending');
+  const r = document.createElement('div');
+  r.className = 'tr';
+  r.textContent = '→ ' + (typeof result === 'object' ? JSON.stringify(result) : result);
+  lastToolCard.appendChild(r);
+  lastToolCard = null;
+}
+
+function addMemCard(p) {
+  const redactSecrets = value => {
+    const re = /(密碼|password|passwd|pwd|passcode|token|secret|client_secret)\s*(?:[:=：]|為|为|是|is)?\s*([^\s,，;；。]+)/gi;
+    if (typeof value === 'string') return value.replace(re, '$1=********');
+    if (value && typeof value === 'object') {
+      const out = Array.isArray(value) ? [] : {};
+      Object.entries(value).forEach(([k, v]) => {
+        out[k] = /(密碼|password|passwd|pwd|passcode|token|secret|client_secret)/i.test(k) ? '********' : redactSecrets(v);
+      });
+      return out;
+    }
+    return value;
+  };
+  p = redactSecrets(p || {});
+  const minImp = parseInt($('set-imp').value || '1', 10);
+  if ((p.importance ?? 3) < minImp) return;
+  const isUser = p.category === 'user';
+  const catMap = { credential: '帳密', personal: '個人', preference: '偏好', technical: '技術', project: '專案', event: '事件', other: '其他' };
+  const label = isUser ? '使用者' : (catMap[p.category] || '◉ 觀察');
+  const c = document.createElement('div');
+  c.className = 'mem-card' + (isUser ? ' user' : '');
+  c.innerHTML = `<div class="mt">${label}<span class="imp">重要度 ${p.importance ?? '-'}</span></div>
+                 <div class="mc">${p.memory}</div>`;
+  $('mem-body').prepend(c);
+  while ($('mem-body').children.length > 40) $('mem-body').lastChild.remove();
+}
+
+function setConn(s) {
+  const el = $('st-conn');
+  const map = { connected: ['● 已連線', 'var(--gold)'], reconnecting: ['● 重連中…', 'var(--amber)'],
+                disconnected: ['● 已斷線', 'var(--pink)'] };
+  const [t, c] = map[s] ?? ['● ' + s, 'var(--txt2)'];
+  el.textContent = t; el.style.color = c;
+  if (s === 'connected') { $('cam').classList.add('active'); }
+  if (s === 'disconnected') $('cam').classList.remove('active');
+}
+
+// ── 統一三欄寬度管理（避免左拖/右拖/收合互相覆蓋）──────
+const layout = { left: 360, right: 320, rightSaved: 320, collapsed: false };
+function applyGrid(){
+  const r = layout.right;
+  $('main').style.gridTemplateColumns = `${layout.left}px 1fr ${r}px`;
+}
+applyGrid();  // 初始套用，確保 JS 接管後三欄正確
+
+// 左欄右邊界拖曳
+(function(){
+  const drag = $('col-drag');
+  let active = false, startX = 0, startW = 0;
+  drag.addEventListener('mousedown', e => {
+    active = true; startX = e.clientX; startW = layout.left;
+    drag.classList.add('dragging');
+    $('main').classList.add('dragging');
+    document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!active) return;
+    layout.left = Math.max(220, Math.min(900, startW + e.clientX - startX));
+    applyGrid();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!active) return;
+    active = false; drag.classList.remove('dragging');
+    $('main').classList.remove('dragging');
+    document.body.style.cursor = ''; document.body.style.userSelect = '';
+  });
+})();
+
+// 右欄左邊界拖曳（往左拉變寬）
+(function(){
+  const drag = $('col-drag-r');
+  if (!drag) return;
+  let active = false, startX = 0, startW = 0;
+  drag.addEventListener('mousedown', e => {
+    if (layout.collapsed) return;  // 收合狀態不可拖
+    active = true; startX = e.clientX; startW = layout.right;
+    drag.classList.add('dragging');
+    $('main').classList.add('dragging');
+    document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!active) return;
+    // 往左拖（clientX 變小）→ 右欄變寬
+    layout.right = Math.max(240, Math.min(620, startW - (e.clientX - startX)));
+    applyGrid();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!active) return;
+    active = false; drag.classList.remove('dragging');
+    $('main').classList.remove('dragging');
+    document.body.style.cursor = ''; document.body.style.userSelect = '';
+  });
+})();
+
+// 右欄上下分界拖曳（工具/記憶比例）
+(function(){
+  const drag = $('row-drag-r'), top = $('tools-sec'), bot = $('mem-sec');
+  if(!drag||!top||!bot) return;
+  let active=false, startY=0, startTop=0, totalH=0;
+  drag.addEventListener('mousedown', e=>{
+    active=true; startY=e.clientY; startTop=top.offsetHeight;
+    totalH=top.offsetHeight+bot.offsetHeight;
+    drag.classList.add('dragging');
+    document.body.style.cursor='row-resize'; document.body.style.userSelect='none';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!active) return;
+    let h=Math.max(60, Math.min(totalH-60, startTop+(e.clientY-startY)));
+    const tp=(h/totalH)*100;
+    top.style.flex=`0 0 ${tp}%`; bot.style.flex=`0 0 ${100-tp}%`;
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(!active) return; active=false; drag.classList.remove('dragging');
+    document.body.style.cursor=''; document.body.style.userSelect='';
+  });
+})();
+
+// ════════════════════════════════════════════════════════════
+//  UI 互動（不依賴後端）
+// ════════════════════════════════════════════════════════════
+
+// 收合右欄（修 bug：統一走 applyGrid，不再直接寫 grid）
+$('btn-collapse').onclick = () => {
+  const m = $('main');
+  layout.collapsed = !layout.collapsed;
+  if (layout.collapsed) {
+    layout.rightSaved = layout.right;
+    layout.right = 44;
+  } else {
+    layout.right = layout.rightSaved;
+  }
+  m.classList.toggle('mem-collapsed', layout.collapsed);
+  const ic = $('btn-collapse').querySelector('.ic');
+  const name = layout.collapsed ? 'layout-sidebar-right-expand' : 'layout-sidebar-right-collapse';
+  ic.dataset.i = name; ic.innerHTML = svgIcon(name);
+  applyGrid();
+};
+
+// ── 設定面板：開關 + 分頁 ──────────────────────────────
+const overlay = $('overlay');
+function openSettings(){ overlay.classList.add('show'); }
+function closeSettings(){ overlay.classList.remove('show'); }
+$('btn-settings').onclick = openSettings;
+$('btn-close-settings').onclick = $('btn-cancel-settings').onclick = closeSettings;
+overlay.onclick = e => { if (e.target === overlay) closeSettings(); };
+
+// ── 連線分割按鈕：下拉快速設定 ─────────────────────────
+const splitBtn = $('split-connect');
+function openQuickCfg(){ splitBtn.classList.add('open'); }
+function closeQuickCfg(){ splitBtn.classList.remove('open'); }
+$('btn-connect-menu').onclick = e => {
+  e.stopPropagation();
+  splitBtn.classList.toggle('open');
+};
+// 點外面關閉
+document.addEventListener('click', e => {
+  if (!splitBtn.contains(e.target)) closeQuickCfg();
+});
+// 快速設定 → 完整設定：開面板並跳到連線分頁
+$('qc-open-settings').onclick = () => {
+  closeQuickCfg();
+  openSettings();
+  document.querySelector('.nav-item[data-pane="connect"]')?.click();
+};
+// quick-cfg ⇄ 設定面板雙向同步（同一份值）
+function bindSync(quickId, fullId){
+  const q = $(quickId), f = $(fullId);
+  if (!q || !f) return;
+  const sync = (src, dest) => {
+    if (dest.value !== src.value) {
+      dest.value = src.value;
+      dest.dispatchEvent(new Event('input'));
+      dest.dispatchEvent(new Event('change'));
+    }
+  };
+  q.addEventListener('input', () => sync(q, f));
+  q.addEventListener('change', () => sync(q, f));
+  f.addEventListener('input', () => sync(f, q));
+  f.addEventListener('change', () => sync(f, q));
+}
+bindSync('q-voice', 'voice');
+bindSync('q-thinking', 'thinking');
+bindSync('q-respond', 'set-respond');
+bindSync('q-drift', 'set-drift');
+bindSync('q-fps', 'set-fps');
+
+$('btn-save-settings').onclick = () => {
+  // 接後端時：把這些值 POST 給 server 或在連線 config 帶上
+  console.log('settings saved', collectSettings());
+  // 儲存後給一個微妙的視覺回饋（按鈕短暫變綠/打勾感）
+  const b = $('btn-save-settings');
+  const orig = b.textContent;
+  b.textContent = '已儲存 ✓';
+  b.style.color = 'var(--green)'; b.style.borderColor = 'rgba(127,220,179,.5)';
+  setTimeout(() => { b.textContent = orig; b.style.color = ''; b.style.borderColor = ''; closeSettings(); }, 700);
+};
+
+// 分頁切換
+const PANE_META = {
+  connect:    { title: '連線 · Connection',  sub: '展前參數 · 連線後鎖定' },
+  persona:    { title: '角色 · Persona',     sub: '人格與行為原則 · 連線前設定' },
+  perception: { title: '感知 · Perception',  sub: '視覺與語音偵測閾值' },
+  dialogue:   { title: '對話 · Dialogue',    sub: '互動與回應行為' },
+  system:     { title: '系統 · System',      sub: '工具、Session、除錯' },
+};
+$('nav-list').addEventListener('click', e => {
+  const item = e.target.closest('.nav-item'); if (!item) return;
+  const key = item.dataset.pane;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n === item));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.dataset.pane === key));
+  const meta = PANE_META[key];
+  if (meta) { $('pane-title').textContent = meta.title; $('pane-sub').textContent = meta.sub; }
+});
+
+function collectSettings() {
+  const tog = id => $(id)?.classList.contains('on') ?? false;
+  return {
+    persona: $('set-persona').value,
+    drift_threshold: parseFloat($('set-drift').value),
+    semantic_fps: parseInt($('set-fps').value, 10),
+    vad_threshold: parseFloat($('set-vad').value),
+    min_importance: parseInt($('set-imp').value, 10),
+    thinking_trace: tog('tog-thinking-trace'),
+    bilingual:      tog('tog-bilingual'),
+    proactive:      tog('tog-proactive'),
+    interruptible:  tog('tog-interrupt'),
+    hide_subtitle:  tog('tog-subtitle'),
+    session_resumption: tog('tog-resume'),
+    google_search:  tog('tog-search'),
+    debug_mode:     tog('tog-debug'),
+  };
+}
+
+// ── slider：即時數值 + 軌道填充百分比 (--p) ─────────────
+const SLIDERS = [
+  ['set-drift','set-drift-v',v=>(+v).toFixed(2)],
+  ['set-fps','set-fps-v',v=>v],
+  ['set-vad','set-vad-v',v=>(+v).toFixed(3)],
+  ['set-imp','set-imp-v',v=>v],
+];
+function syncSlider(el, out, fmt){
+  const min = +el.min, max = +el.max, v = +el.value;
+  const p = ((v - min) / (max - min)) * 100;
+  el.style.setProperty('--p', p + '%');
+  $(out).textContent = fmt(el.value);
+}
+SLIDERS.forEach(([s,o,f])=>{
+  const el=$(s);
+  if(el){
+    syncSlider(el,o,f);
+    el.addEventListener('input', ()=>syncSlider(el,o,f));
+    el.addEventListener('change', ()=>syncSlider(el,o,f));
+  }
+});
+
+// ── toggle 卡片：全部使用 .on class 切換 ────────────────
+['tog-thinking-trace','tog-bilingual','tog-proactive','tog-interrupt',
+ 'tog-subtitle','tog-resume','tog-search','tog-debug']
+  .forEach(id => { const el = $(id); if (el) el.onclick = () => el.classList.toggle('on'); });
+
+// q-respond ⇄ set-respond 同步已在上方 bindSync 中一同連動
+
+// ── 修 dropdown 旋轉 bug：用 JS 管 .open class，不再依賴 :focus-within ──
+document.querySelectorAll('.sel-wrap').forEach(wrap => {
+  const sel = wrap.querySelector('select'); if (!sel) return;
+  
+  let ignoreNextClick = false;
+
+  const setOpen = (val) => {
+    wrap.classList.toggle('open', val);
+  };
+
+  sel.addEventListener('click', () => {
+    if (ignoreNextClick) {
+      ignoreNextClick = false;
+      return;
+    }
+    const isOpen = wrap.classList.contains('open');
+    setOpen(!isOpen);
+  });
+
+  sel.addEventListener('blur', () => {
+    setOpen(false);
+    ignoreNextClick = true;
+    setTimeout(() => { ignoreNextClick = false; }, 200);
+  });
+
+  sel.addEventListener('change', () => {
+    setOpen(false);
+    sel.blur();
+  });
+
+  sel.addEventListener('keydown', e => {
+    if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+      setOpen(false);
+      if (e.key === 'Escape') sel.blur();
+    }
+  });
+});
+// ── 來源開關下拉（連線後即時斷來源）──────────────────────
+const SRC_KEYS = ['vision','audio','tool','memory'];
+const srcMenu = $('src-menu');
+$('src-trigger').onclick = e => { e.stopPropagation(); srcMenu.classList.toggle('open'); };
+document.addEventListener('click', e => { if(!srcMenu.contains(e.target)) srcMenu.classList.remove('open'); });
+document.querySelectorAll('.src-item').forEach(item=>{
+  item.onclick = () => {
+    const key = item.dataset.src;
+    const sw = $('src-'+key);
+    const on = !sw.classList.contains('on');
+    sw.classList.toggle('on', on);
+    if(key==='memory'){ try{ localStorage.setItem('raphael.memory', on?'1':'0'); }catch(e){} }
+    // 接後端時：ws.send 控制訊息切斷/恢復該來源
+  };
+});
+
+// slider 即時數值（quick-cfg）
+[['q-ctx','q-ctx-v',v=>v],['q-temp','q-temp-v',v=>(+v).toFixed(2)],
+ ['q-drift','q-drift-v',v=>(+v).toFixed(2)],['q-fps','q-fps-v',v=>v+' fps']]
+ .forEach(([s,o,f])=>{
+   const el=$(s);
+   if(el){
+     const update = () => { const t=$(o); if(t)t.textContent=f(el.value); };
+     el.addEventListener('input', update);
+     el.addEventListener('change', update);
+   }
+ });
+
+// 儲存為預設值打勾
+const qcSave = $('qc-save-default');
+if(qcSave){
+  // 啟動時還原
+  try{ if(localStorage.getItem('raphael.saveDefault')==='1') qcSave.classList.add('on'); }catch(e){}
+  qcSave.onclick = () => {
+    qcSave.classList.toggle('on');
+    const on = qcSave.classList.contains('on');
+    try{ localStorage.setItem('raphael.saveDefault', on?'1':'0'); }catch(e){}
+    if(on) saveQuickDefaults();
+  };
+}
+function saveQuickDefaults(){
+  const cfg = {
+    voice:$('q-voice')?.value, respond:$('q-respond')?.value, thinking:$('q-thinking')?.value,
+    ctx:$('q-ctx')?.value, temp:$('q-temp')?.value, drift:$('q-drift')?.value, fps:$('q-fps')?.value,
+  };
+  try{ localStorage.setItem('raphael.quickDefaults', JSON.stringify(cfg)); }catch(e){}
+}
+function restoreQuickDefaults(){
+  let cfg=null;
+  try{ cfg=JSON.parse(localStorage.getItem('raphael.quickDefaults')||'null'); }catch(e){}
+  if(!cfg) return;
+  const set=(id,v)=>{ const el=$(id); if(el&&v!=null){ el.value=v; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }};
+  set('q-voice',cfg.voice); set('q-respond',cfg.respond); set('q-thinking',cfg.thinking);
+  set('q-ctx',cfg.ctx); set('q-temp',cfg.temp); set('q-drift',cfg.drift); set('q-fps',cfg.fps);
+}
+restoreQuickDefaults();
+// 還原記憶來源開關
+(function restoreMemorySrc(){
+  let saved=null; try{ saved=localStorage.getItem('raphael.memory'); }catch(e){}
+  if(saved==='1') $('src-memory')?.classList.add('on');
+})();
+
+// 發送文字
+function sendText(){
+  const inp=$('text-input'); const t=inp.value.trim(); if(!t) return;
+  applyMessage('transcript_in',{text:t,done:true});  // mock：直接顯示
+  inp.value='';
+  // 接後端時：ws.send(JSON.stringify({channel:'text_in', payload:t}))
+}
+$('btn-send').onclick=sendText;
+$('text-input').onkeydown=e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendText();} };
+// 連線鈕（mock）
+$('btn-connect').onclick=()=>{
+  applySettingsToSession();
+  setConn('connected');
+  $('st-conn').textContent='● 已連線（mock）';
+  document.querySelector('.ctrlbar').classList.add('live');
+  document.body.classList.add('connected');
+  closeQuickCfg();
+  showCfgSummary();
+  startMock();
+};
+$('btn-disconnect').onclick=()=>{
+  setConn('disconnected');
+  document.querySelector('.ctrlbar').classList.remove('live');
+  document.body.classList.remove('connected');
+  srcMenu.classList.remove('open');
+  $('cfg-summary').classList.remove('show');
+  stopMock();
+  unlockSettings();
+};
+$('btn-interrupt').onclick=()=>applyMessage('interrupted',null);
+
+// 連線時把展前設定鎖定並顯示摘要
+function applySettingsToSession(){
+  ['voice','thinking','mic','set-persona','set-respond'].forEach(id=>{
+    const el=$(id); if(el) el.setAttribute('disabled','');
+  });
+}
+function unlockSettings(){
+  ['voice','thinking','mic','set-persona','set-respond'].forEach(id=>{
+    const el=$(id); if(el) el.removeAttribute('disabled');
+  });
+}
+function showCfgSummary(){
+  const v=$('voice')?.value||'Puck';
+  const t=$('thinking')?.value||'OFF';
+  const r=$('q-respond')?.value||'語音';
+  const sum=$('cfg-summary');
+  sum.innerHTML=`<span>音色 <b>${v}</b></span><span class="sep"></span><span>思考 <b>${t}</b></span><span class="sep"></span><span>回應 <b>${r}</b></span>`;
+  sum.classList.add('show');
+}
+
+// ════════════════════════════════════════════════════════════
+//  WebSocket 接入點（目前註解，接後端時打開）
+// ════════════════════════════════════════════════════════════
+/*
+let ws;
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen = () => applyMessage('status','connected');
+  ws.onclose = () => applyMessage('status','disconnected');
+  ws.onmessage = e => { const m = JSON.parse(e.data); applyMessage(m.channel, m.payload); };
+}
+*/
+
+// ════════════════════════════════════════════════════════════
+//  MOCK 展示資料（接後端後整段刪除）
+// ════════════════════════════════════════════════════════════
+let mockTimers = [];
+function stopMock(){ mockTimers.forEach(t=>clearInterval(t)); mockTimers=[]; }
+function startMock(){
+  stopMock();  // 防止重複連線疊加多組 interval（動畫變快 bug）
+  setTokens(0);
+  // 感知事件流
+  const reasons=['object_appeared','object_left','person_enter','person_leave','person_moved'];
+  const details=['偵測到新物件於下右','物件 #118 已離開畫面','有人進入畫面（下右）','人物 #18 已離開畫面','人物 #1 移動至中中'];
+  let ei=0;
+  mockTimers.push(setInterval(()=>{ const i=ei++%reasons.length; applyMessage('vision_event',{reason:reasons[i],detail:details[i]}); },1400));
+
+  // VAD 音量起伏
+  mockTimers.push(setInterval(()=>{ applyMessage('vad_event',{speaking:Math.random()>0.6,probability:Math.random()}); },300));
+
+  // 感知資料（fps/drift/gate）
+  mockTimers.push(setInterval(()=>{ applyMessage('sensor_view',{jpeg:null,vad_speaking:Math.random()>0.7,
+    gate_state:['WATCHING','ANALYZING','TRIGGERED'][Math.floor(Math.random()*3)],
+    drift:Math.random()*0.4,fps_capture:26+Math.random()*4,fps_semantic:3.5+Math.random()}); },800));
+
+  // 一段腳本化對話（展示工具 + 記憶 + 主動開口）
+  const script=[
+    [800,()=>{ applyMessage('proactive','vision:semantic'); }],
+    [400,()=>{ applyMessage('tool_call',{name:'describe_environment',args:{}}); }],
+    [900,()=>{ applyMessage('tool_result',{name:'describe_environment',
+      result:{description:'畫面中有 2 人、0 個移動物件',persons_detail:['人物#1（位於中中）','人物#4（位於中左）']}}); }],
+    [300,()=>{ applyMessage('memory_write',{memory:'畫面出現兩位人物，位於中央與中左',category:'observation',importance:2}); }],
+    [600,()=>{ '我注意到有兩位朋友在現場，你們正在聊些什麼呢？有需要 Raphael 幫忙的地方嗎？'.split('').forEach((ch,i)=>setTimeout(()=>applyMessage('transcript_out',{text:ch}),i*40)); }],
+    [3200,()=>applyMessage('transcript_out',{text:'',done:true})],
+    [400,()=>setTokens(4677)],
+    [800,()=>{ applyMessage('transcript_in',{text:'はい、いいです。',done:true}); }],
+    [600,()=>{ applyMessage('memory_write',{memory:'使用者以日語回應，表示同意',category:'user',importance:3}); }],
+  ];
+  let t=0; script.forEach(([d,fn])=>{ t+=d; setTimeout(fn,t); });
+}
+</script>
+<!-- 小巧思：鍵盤快捷鍵 / 細節互動 -->
+<script>
+(() => {
+  // ⌘/Ctrl + K 開啟設定，Esc 關閉
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      document.getElementById('overlay').classList.add('show');
+    }
+    if (e.key === 'Escape') {
+      document.getElementById('overlay').classList.remove('show');
+    }
+  });
+
+  // 按鈕點擊時極短的金色波紋（純 CSS 偽，加 class）
+  document.querySelectorAll('.btn,.icon-btn,.pill').forEach(el => {
+    el.addEventListener('pointerdown', () => el.dataset.press = '1');
+    el.addEventListener('pointerup',   () => delete el.dataset.press);
+    el.addEventListener('pointerleave',() => delete el.dataset.press);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+# OmniCore-Raphael 統一依賴
+# GPU: pip install torch --index-url https://download.pytorch.org/whl/cu128
+# CPU: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# ── 核心 ──────────────────────────────────────────────────
+python-dotenv>=1.0.0
+websockets>=12.0
+fastapi>=0.110.0
+uvicorn>=0.27.0
+
+# ── Gemini Live（音訊 I/O）────────────────────────────────
+# pyaudio（選配，本機播放用；Web 模式不需要）
+
+# ── 感知：VAD ─────────────────────────────────────────────
+sounddevice>=0.4.0
+numpy>=1.24.0
+torch>=2.0.0
+
+# ── 感知：Vision Gate ─────────────────────────────────────
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+clip @ git+https://github.com/openai/CLIP.git
+Pillow>=10.0.0
+# mediapipe>=0.10.0      # 選配，Pose 功能用
+
+# ── 記憶層（Qdrant）──────────────────────────────────────
+# 預設：RAPHAEL_MEMORY_BACKEND=qdrant_local（不需另外啟 Qdrant server）
+# 遠端：RAPHAEL_MEMORY_BACKEND=qdrant_remote + QDRANT_HOST/QDRANT_PORT
+qdrant-client>=1.9.0
+# 預設使用內建 hashing embedding，不需下載模型。
+# 若要語意模型，設定 RAPHAEL_EMBEDDING_BACKEND=sentence_transformers，
+# 再安裝：python ui.py --install-deps memory-semantic --with-torch
+# sentence-transformers>=3.0.0
+# fastembed>=0.3.0
+
+# ── 額外模型 Function Calling ─────────────────────────────
+openai>=1.30.0
+google-api-python-client>=2.0.0
+google-auth-httplib2>=0.1.0
+google-auth-oauthlib>=1.0.0
+ddgs>=9.0.0
+duckduckgo-search>=5.0.0
+
+# ── 網路 / 安全 ──────────────────────────────────────────
+httpx>=0.27.0
+certifi>=2024.0.0
+truststore>=0.9.0
+
+# ── 桌面操作 / 檔案處理工具 ─────────────────────────────
+pyautogui>=0.9.54
+pyperclip>=1.8.2
+playwright>=1.44.0
+psutil>=5.9.0
+pypdf>=4.0.0
+python-docx>=1.1.0
+openpyxl>=3.1.0
